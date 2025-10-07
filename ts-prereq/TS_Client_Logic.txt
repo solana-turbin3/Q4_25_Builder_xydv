@@ -1,0 +1,3 @@
+Why do you think Solana has chosen during most of its history to use Typescript for Client side development?
+-> In my opinion, JavaScript has a large number of developers and supports every platform (web, android/react-native, servers, desktop apps, scripting).
+also it will be easier for developers to migrate from web2 to web3 on solana as web2 mostly uses TS/JS for servers and it will be a overhead to learn a new language.
