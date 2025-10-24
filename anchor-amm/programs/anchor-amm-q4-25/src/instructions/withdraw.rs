@@ -65,6 +65,11 @@ impl<'info> Withdraw<'info> {
     pub fn withdraw(&mut self, amount: u64, min_x: u64, min_y: u64) -> Result<()> {
         require!(self.config.locked == false, AmmError::PoolLocked);
         require!(amount != 0, AmmError::InvalidAmount);
+        require!(self.mint_lp.supply != 0, AmmError::NoLiquidityInPool);
+        require!(
+            self.mint_lp.supply >= amount,
+            AmmError::LiquidityLessThanMinimum
+        );
 
         let (x, y) = match self.mint_lp.supply == 0
             && self.vault_x.amount == 0
