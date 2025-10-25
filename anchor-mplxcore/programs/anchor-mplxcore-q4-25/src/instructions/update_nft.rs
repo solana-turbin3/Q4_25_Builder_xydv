@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use mpl_core::{instructions::UpdateV1CpiBuilder, ID as CORE_PROGRAM_ID};
+use mpl_core::{instructions::UpdateV2CpiBuilder, ID as CORE_PROGRAM_ID};
 
 use crate::{error::MPLXCoreError, state::CollectionAuthority};
 
@@ -9,9 +9,10 @@ pub struct UpdateNft<'info> {
     pub authority: Signer<'info>,
     #[account(
         mut,
-        constraint = asset.data_is_empty() @ MPLXCoreError::AssetAlreadyInitialized,
+        constraint = !asset.data_is_empty() @ MPLXCoreError::InvalidAsset,
         constraint = asset.owner == &CORE_PROGRAM_ID @ MPLXCoreError::InvalidCollection
     )]
+    /// CHECK: checked by core?
     pub asset: UncheckedAccount<'info>,
     #[account(
         mut,
@@ -40,7 +41,7 @@ impl<'info> UpdateNft<'info> {
             &[self.collection_authority.bump],
         ]];
 
-        UpdateV1CpiBuilder::new(&self.core_program.to_account_info())
+        UpdateV2CpiBuilder::new(&self.core_program.to_account_info())
             .asset(&self.asset.to_account_info())
             .collection(Some(&self.collection.to_account_info()))
             .payer(&self.authority.to_account_info())

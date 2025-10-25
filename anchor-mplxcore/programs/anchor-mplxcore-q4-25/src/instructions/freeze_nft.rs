@@ -13,9 +13,10 @@ pub struct FreezeNft<'info> {
     pub authority: Signer<'info>,
     #[account(
         mut,
-        constraint = asset.data_is_empty() @ MPLXCoreError::AssetAlreadyInitialized,
+        constraint = !asset.data_is_empty() @ MPLXCoreError::InvalidAsset,
         constraint = asset.owner == &CORE_PROGRAM_ID @ MPLXCoreError::InvalidCollection
     )]
+    /// CHECK: checked by core
     pub asset: UncheckedAccount<'info>,
     #[account(
         mut,

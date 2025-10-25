@@ -16,4 +16,6 @@ pub enum MPLXCoreError {
     CollectionNotInitialized,
     #[msg("The collection is invalid.")]
     InvalidCollection,
+    #[msg("The asset is invalid.")]
+    InvalidAsset,
 }
