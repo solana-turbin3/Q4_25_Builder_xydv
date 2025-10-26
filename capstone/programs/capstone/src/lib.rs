@@ -2,6 +2,8 @@ use anchor_lang::prelude::*;
 
 declare_id!("KCfcxRdDpnqL1JQiLTSwokRjFudgRZYs8uHXSGy8tu5");
 
+mod states;
+
 #[program]
 pub mod capstone {
     use super::*;
