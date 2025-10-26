@@ -80,7 +80,7 @@ impl<'info> Swap<'info> {
         let swap_result = curve.swap(p, amount, min).unwrap();
 
         self.deposit_tokens(is_x, swap_result.deposit)?;
-        self.withdraw_tokens(is_x, swap_result.withdraw)
+        self.withdraw_tokens(!is_x, swap_result.withdraw)
     }
 
     pub fn deposit_tokens(&mut self, is_x: bool, amount: u64) -> Result<()> {
@@ -130,7 +130,7 @@ impl<'info> Swap<'info> {
             Transfer {
                 from,
                 to,
-                authority: self.user.to_account_info(),
+                authority: self.config.to_account_info(),
             },
             signer_seeds,
         );

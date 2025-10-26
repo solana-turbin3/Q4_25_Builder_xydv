@@ -119,7 +119,7 @@ impl<'info> Withdraw<'info> {
             Transfer {
                 from,
                 to,
-                authority: self.user.to_account_info(),
+                authority: self.config.to_account_info(),
             },
             signer_seeds,
         );
