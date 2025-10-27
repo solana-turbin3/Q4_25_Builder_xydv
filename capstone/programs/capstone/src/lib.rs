@@ -6,7 +6,6 @@ mod error;
 mod instructions;
 mod states;
 
-use error::*;
 use instructions::*;
 
 #[program]
@@ -21,6 +20,10 @@ pub mod capstone {
         max_failure_count: u8,
     ) -> Result<()> {
         ctx.accounts
-            .create_subscription(name, amount, schedule, max_failure_count)
+            .create_subscription(name, amount, schedule, max_failure_count, &ctx.bumps)
+    }
+
+    pub fn subscribe(ctx: Context<Subscribe>) -> Result<()> {
+        ctx.accounts.subscribe(&ctx.bumps)
     }
 }

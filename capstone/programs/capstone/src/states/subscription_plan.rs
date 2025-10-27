@@ -12,6 +12,7 @@ pub struct SubscriptionPlan {
     #[max_len(10)] // todo: get exact max_size needed for schedule
     pub schedule: String,
     pub max_failure_count: u8,
+    pub bump: u8,
 }
 
 pub const PLAN_SEED: &[u8] = b"plan";

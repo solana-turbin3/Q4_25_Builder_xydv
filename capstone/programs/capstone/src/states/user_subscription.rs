@@ -15,4 +15,7 @@ pub struct UserSubscription {
     pub subscription: Pubkey,
     pub status: Status,
     pub failure_count: u8,
+    pub bump: u8,
 }
+
+pub const SUBSCRIPTION_SEED: &[u8] = b"subscription";

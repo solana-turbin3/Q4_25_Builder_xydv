@@ -6,4 +6,6 @@ pub enum SubscriptionError {
     InvalidAmount,
     #[msg("name must be provided")]
     InvalidName,
+    #[msg("mint account mismatch")]
+    MintMismatch,
 }

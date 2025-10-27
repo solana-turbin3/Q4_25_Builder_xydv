@@ -48,6 +48,7 @@ impl<'info> CreateSubscription<'info> {
         amount: u64,
         schedule: String,
         max_failure_count: u8,
+        bumps: &CreateSubscriptionBumps,
     ) -> Result<()> {
         require!(amount > 0, SubscriptionError::InvalidAmount);
         // name is used as a seed parameter
@@ -62,6 +63,7 @@ impl<'info> CreateSubscription<'info> {
             amount,
             schedule,
             max_failure_count,
+            bump: bumps.subscription_plan,
         });
 
         Ok(())
