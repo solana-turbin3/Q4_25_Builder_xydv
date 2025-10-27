@@ -6,12 +6,13 @@ pub struct SubscriptionPlan {
     pub merchant: Pubkey,
     pub mint: Pubkey,
     pub merchant_ata: Pubkey,
+    pub amount: u64,
+    pub active: bool,
+    pub max_failure_count: u8,
     #[max_len(50)]
     pub name: String,
-    pub amount: u64,
     #[max_len(10)] // todo: get exact max_size needed for schedule
     pub schedule: String,
-    pub max_failure_count: u8,
     pub bump: u8,
 }
 

@@ -7,6 +7,7 @@ use anchor_spl::{
 
 use crate::{
     error::SubscriptionError,
+    events::SubscribeEvent,
     states::{Status, SubscriptionPlan, UserSubscription, SUBSCRIPTION_SEED},
 };
 
@@ -23,7 +24,9 @@ pub struct Subscribe<'info> {
         bump
     )]
     pub user_subscription: Account<'info, UserSubscription>,
-    // todo: add active check
+    #[account(
+        constraint = subscription_plan.active @ SubscriptionError::InactivePlan
+    )]
     pub subscription_plan: Account<'info, SubscriptionPlan>,
     #[account(
         address = subscription_plan.mint @ SubscriptionError::MintMismatch,
@@ -57,6 +60,13 @@ impl<'info> Subscribe<'info> {
             status: Status::Active,
             failure_count: 0,
             bump: bumps.user_subscription,
+        });
+
+        // emit events so that it can be used as trigger for merchant backend
+        emit!(SubscribeEvent {
+            subscriber: self.subscriber.key(),
+            subscription: self.subscription_plan.key(),
+            status: Status::Active
         });
 
         Ok(())

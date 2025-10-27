@@ -61,6 +61,7 @@ impl<'info> CreateSubscription<'info> {
             merchant_ata: self.merchant_mint_ata.key(),
             name,
             amount,
+            active: true,
             schedule,
             max_failure_count,
             bump: bumps.subscription_plan,
