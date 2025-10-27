@@ -2,17 +2,25 @@ use anchor_lang::prelude::*;
 
 declare_id!("KCfcxRdDpnqL1JQiLTSwokRjFudgRZYs8uHXSGy8tu5");
 
+mod error;
+mod instructions;
 mod states;
+
+use error::*;
+use instructions::*;
 
 #[program]
 pub mod capstone {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        msg!("Greetings from: {:?}", ctx.program_id);
-        Ok(())
+    pub fn create_subscription(
+        ctx: Context<CreateSubscription>,
+        name: String,
+        amount: u64,
+        schedule: String,
+        max_failure_count: u8,
+    ) -> Result<()> {
+        ctx.accounts
+            .create_subscription(name, amount, schedule, max_failure_count)
     }
 }
-
-#[derive(Accounts)]
-pub struct Initialize {}

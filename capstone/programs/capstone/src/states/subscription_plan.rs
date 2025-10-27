@@ -13,3 +13,5 @@ pub struct SubscriptionPlan {
     pub schedule: String,
     pub max_failure_count: u8,
 }
+
+pub const PLAN_SEED: &[u8] = b"plan";
