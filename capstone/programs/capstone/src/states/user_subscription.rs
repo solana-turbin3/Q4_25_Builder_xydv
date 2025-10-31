@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 pub enum Status {
     Active,
     Failed,
-    Canceled,
+    Canceled, // todo: future
 }
 
 #[derive(InitSpace)]

@@ -4,6 +4,15 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{approve_checked, ApproveChecked, Mint, TokenAccount, TokenInterface},
 };
+use tuktuk_program::{
+    cron::{
+        cpi::{accounts::InitializeCronJobV0, initialize_cron_job_v0},
+        program::Cron,
+        types::InitializeCronJobArgsV0,
+    },
+    tuktuk::program::Tuktuk,
+    TaskQueueAuthorityV0, TaskQueueV0,
+};
 
 use crate::{
     error::SubscriptionError,
@@ -42,8 +51,45 @@ pub struct Subscribe<'info> {
     )]
     pub subscriber_mint_ata: InterfaceAccount<'info, TokenAccount>, // ?? preinitialized??
 
+    // TUKTUK ACCOUNTS
+    #[account(mut)]
+    pub task_queue: Account<'info, TaskQueueV0>,
+    #[account(
+      seeds = [b"task_queue_authority", task_queue.key().as_ref(), queue_authority.key().as_ref()],
+      bump = task_queue_authority.bump_seed,
+      seeds::program = tuktuk_program::tuktuk::ID,
+    )]
+    pub task_queue_authority: Account<'info, TaskQueueAuthorityV0>,
+    #[account(
+          seeds = [b"queue_authority"],
+          bump
+    )]
+    /// CHECK: This is a PDA that will be the authority on the task queue
+    pub queue_authority: UncheckedAccount<'info>,
+    #[account(mut)]
+    /// CHECK: Used in CPI
+    pub user_cron_jobs: AccountInfo<'info>,
+    #[account(mut)]
+    /// CHECK: Used in CPI
+    pub cron_job: AccountInfo<'info>,
+    #[account(mut)]
+    /// CHECK: Used in CPI
+    pub cron_job_name_mapping: AccountInfo<'info>,
+    /// CHECK: Initialized in CPI
+    #[account(mut)]
+    pub task: AccountInfo<'info>,
+    /// CHECK: Used to write return data
+    #[account(mut)]
+    pub task_return_account_1: AccountInfo<'info>,
+    /// CHECK: Used to write return data
+    #[account(mut)]
+    pub task_return_account_2: AccountInfo<'info>,
+
+    // PROGRAMS
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Interface<'info, TokenInterface>,
+    pub tuktuk_program: Program<'info, Tuktuk>,
+    pub cron_program: Program<'info, Cron>,
     pub system_program: Program<'info, System>,
 }
 
@@ -85,5 +131,35 @@ impl<'info> Subscribe<'info> {
 
         // is this amount used up once used or the max cap a delegate can transfer at once?
         approve_checked(ctx, amount, self.mint.decimals)
+    }
+
+    pub fn initialize_cron(&mut self, bumps: &SubscribeBumps) -> Result<()> {
+        initialize_cron_job_v0(
+            CpiContext::new_with_signer(
+                self.cron_program.to_account_info(),
+                InitializeCronJobV0 {
+                    payer: self.subscriber.to_account_info(),
+                    queue_authority: self.queue_authority.to_account_info(),
+                    task_queue_authority: self.task_queue_authority.to_account_info(),
+                    authority: self.queue_authority.to_account_info(),
+                    user_cron_jobs: self.user_cron_jobs.to_account_info(),
+                    cron_job: self.cron_job.to_account_info(),
+                    cron_job_name_mapping: self.cron_job_name_mapping.to_account_info(),
+                    task_queue: self.task_queue.to_account_info(),
+                    task: self.task.to_account_info(),
+                    task_return_account_1: self.task_return_account_1.to_account_info(),
+                    task_return_account_2: self.task_return_account_2.to_account_info(),
+                    system_program: self.system_program.to_account_info(),
+                    tuktuk_program: self.tuktuk_program.to_account_info(),
+                },
+                &[&[b"queue_authority", &[bumps.queue_authority]]],
+            ),
+            InitializeCronJobArgsV0 {
+                name: format!("autopay for {}", self.subscription_plan.name),
+                schedule: self.subscription_plan.schedule.clone(),
+                free_tasks_per_transaction: 0,
+                num_tasks_per_queue_call: 5,
+            },
+        )
     }
 }

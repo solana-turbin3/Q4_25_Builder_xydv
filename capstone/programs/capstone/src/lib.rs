@@ -27,4 +27,8 @@ pub mod capstone {
     pub fn subscribe(ctx: Context<Subscribe>) -> Result<()> {
         ctx.accounts.subscribe(&ctx.bumps)
     }
+
+    pub fn charge_user(_ctx: Context<ChargeUser>) -> Result<()> {
+        Ok(())
+    }
 }
