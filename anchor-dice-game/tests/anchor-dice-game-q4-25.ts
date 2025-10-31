@@ -6,7 +6,8 @@ describe("anchor-dice-game-q4-25", () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.AnchorProvider.env());
 
-  const program = anchor.workspace.anchorDiceGameQ425 as Program<AnchorDiceGameQ425>;
+  const program = anchor.workspace
+    .anchorDiceGameQ425 as Program<AnchorDiceGameQ425>;
 
   it("Is initialized!", async () => {
     // Add your test here.
