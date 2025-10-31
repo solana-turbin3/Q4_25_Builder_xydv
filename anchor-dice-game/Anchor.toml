@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-anchor_dice_game_q4_25 = "DZDRzKdTu4SweFFjDutMgPqu55Qt9TLbhWG1cMAikYVp"
+anchor_dice_game_q4_25 = "DugHkcqy1nRkj1o3pVir7GnrVFNbtM3yQirR93pVyF1B"
 
 [registry]
 url = "https://api.apr.dev"
