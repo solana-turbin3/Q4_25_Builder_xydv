@@ -11,4 +11,6 @@ pub enum SubscriptionError {
     MintMismatch,
     #[msg("inactive plan")]
     InactivePlan,
+    #[msg("invalid schedule")]
+    InvalidSchedule,
 }

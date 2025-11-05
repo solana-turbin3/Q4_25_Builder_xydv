@@ -1,9 +1,15 @@
 #![allow(warnings)]
 
+use std::sync::{Arc, Mutex};
+
 use anchor_lang::{prelude::*, solana_program::instruction::Instruction, InstructionData};
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
+    token::Token,
+    token_interface::{
+        transfer_checked, Mint, PermanentDelegateInitialize, TokenAccount, TokenInterface,
+        TransferChecked,
+    },
 };
 use tuktuk_program::{
     compile_transaction,
@@ -23,8 +29,10 @@ use crate::{
 #[derive(Accounts)]
 pub struct ChargeUser<'info> {
     #[account(mut)]
+    /// CHECK: called via tuktuk
     pub subscriber: AccountInfo<'info>,
     #[account(mut)]
+    /// CHECK: called via tuktuk
     pub merchant: AccountInfo<'info>,
     #[account(
         seeds = [SUBSCRIPTION_SEED, subscriber.key.as_ref(), subscription_plan.key().as_ref()],
@@ -81,6 +89,10 @@ impl<'info> ChargeUser<'info> {
             signer_seeds,
         );
 
+        let unemployed = self.user_subscription.to_account_info();
+
+        let user = Arc::new(Mutex::new(unemployed));
+
         transfer_checked(ctx, self.subscription_plan.amount, self.mint.decimals)
     }
 
@@ -107,7 +119,10 @@ impl<'info> ChargeUser<'info> {
 
         let (compiled_tx, _) = compile_transaction(ixs, vec![])?;
 
-        let signer_seeds: &[&[&[u8]]] = &[&[b"queue_authority", &[]]]; // add queue authority bump
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            b"queue_authority",
+            &[self.user_subscription.queue_authority_bump],
+        ]];
 
         let ctx = CpiContext::new_with_signer(
             self.cron_program.to_account_info(),

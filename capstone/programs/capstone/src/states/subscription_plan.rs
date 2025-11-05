@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 pub struct SubscriptionPlan {
     pub merchant: Pubkey,
     pub mint: Pubkey,
-    pub merchant_ata: Pubkey,
+    pub merchant_ata: Pubkey, // ?? derive onchain from find program address sync?
     pub amount: u64,
     pub active: bool,
     pub max_failure_count: u8,
@@ -17,3 +17,5 @@ pub struct SubscriptionPlan {
 }
 
 pub const PLAN_SEED: &[u8] = b"plan";
+pub const VAULT_SEED: &[u8] = b"vault";
+pub const FEES: u64 = 10_000_000; // 0.01 SOL per subscription, for now no automation charges (maybe add in future)

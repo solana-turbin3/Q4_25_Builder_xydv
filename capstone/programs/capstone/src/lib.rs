@@ -8,6 +8,7 @@ mod instructions;
 mod states;
 
 use instructions::*;
+use states::*;
 
 #[program]
 pub mod capstone {
@@ -15,13 +16,10 @@ pub mod capstone {
 
     pub fn create_subscription(
         ctx: Context<CreateSubscription>,
-        name: String,
-        amount: u64,
-        schedule: String,
-        max_failure_count: u8,
+        args: CreateSubscriptionArgs,
     ) -> Result<()> {
-        ctx.accounts
-            .create_subscription(name, amount, schedule, max_failure_count, &ctx.bumps)
+        ctx.accounts.create_subscription(args, &ctx.bumps)?;
+        ctx.accounts.charge_fees(FEES)
     }
 
     pub fn subscribe(ctx: Context<Subscribe>) -> Result<()> {

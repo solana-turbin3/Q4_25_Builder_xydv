@@ -23,6 +23,7 @@ custom-panic = []
 anchor-lang = { version = "0.31.1", features = ["init-if-needed"]}
 tuktuk-program = { git = "https://github.com/helium/tuktuk.git" }
 anchor-spl = "0.31.1"
+clockwork-cron = "2.0.19"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

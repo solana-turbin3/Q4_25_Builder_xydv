@@ -105,6 +105,10 @@ impl<'info> Subscribe<'info> {
             subscription: self.subscription_plan.key(),
             status: Status::Active,
             failure_count: 0,
+            cron_job: self.cron_job.key(),
+            next_cron_transaction_id: 0,
+            queue_authority_bump: bumps.queue_authority,
+            last_exec_ts: Clock::get()?.unix_timestamp,
             bump: bumps.user_subscription,
         });
 
@@ -155,7 +159,7 @@ impl<'info> Subscribe<'info> {
                 &[&[b"queue_authority", &[bumps.queue_authority]]],
             ),
             InitializeCronJobArgsV0 {
-                name: format!("autopay for {}", self.subscription_plan.name),
+                name: format!("autopay service for {}", self.subscription_plan.name),
                 schedule: self.subscription_plan.schedule.clone(),
                 free_tasks_per_transaction: 0,
                 num_tasks_per_queue_call: 5,
