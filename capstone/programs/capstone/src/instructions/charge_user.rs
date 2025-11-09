@@ -89,10 +89,6 @@ impl<'info> ChargeUser<'info> {
             signer_seeds,
         );
 
-        let unemployed = self.user_subscription.to_account_info();
-
-        let user = Arc::new(Mutex::new(unemployed));
-
         transfer_checked(ctx, self.subscription_plan.amount, self.mint.decimals)
     }
 
@@ -143,5 +139,22 @@ impl<'info> ChargeUser<'info> {
                 transaction_source: TransactionSourceV0::CompiledV0(compiled_tx.into()),
             },
         )
+    }
+
+    pub fn requeue_task(&mut self) -> Result<()> {
+        require_gte!(
+            self.subscription_plan.max_failure_count,
+            self.user_subscription.failure_count,
+            SubscriptionError::MaxRetriesReached
+        );
+
+        todo!("create task for next day");
+
+        match self.user_subscription.failure_count.checked_add(1) {
+            Some(x) => self.user_subscription.failure_count = x,
+            None => return err!(SubscriptionError::ArithmeticError),
+        };
+
+        Ok(())
     }
 }

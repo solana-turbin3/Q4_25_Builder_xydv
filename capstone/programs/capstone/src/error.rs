@@ -13,4 +13,8 @@ pub enum SubscriptionError {
     InactivePlan,
     #[msg("invalid schedule")]
     InvalidSchedule,
+    #[msg("max retries reached")]
+    MaxRetriesReached,
+    #[msg("arithmetic error")]
+    ArithmeticError,
 }

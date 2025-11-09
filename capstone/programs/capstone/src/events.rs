@@ -8,3 +8,9 @@ pub struct SubscribeEvent {
     pub subscription: Pubkey,
     pub status: Status,
 }
+
+#[event]
+pub struct CancelSubscriptionEvent {
+    pub subscriber: Pubkey,
+    pub subscription: Pubkey,
+}

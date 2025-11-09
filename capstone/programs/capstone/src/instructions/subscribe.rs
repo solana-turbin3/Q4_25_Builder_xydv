@@ -2,7 +2,8 @@ use anchor_lang::prelude::*;
 
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token_interface::{approve_checked, ApproveChecked, Mint, TokenAccount, TokenInterface},
+    token_2022::spl_token_2022::instruction::AuthorityType,
+    token_interface::{set_authority, Mint, SetAuthority, TokenAccount, TokenInterface},
 };
 use tuktuk_program::{
     cron::{
@@ -97,7 +98,7 @@ impl<'info> Subscribe<'info> {
     pub fn subscribe(&mut self, bumps: &SubscribeBumps) -> Result<()> {
         // think about extra security checks??
 
-        self.delegate(self.subscription_plan.amount)?;
+        self.set_authority()?;
 
         self.user_subscription.set_inner(UserSubscription {
             subscriber: self.subscriber.key(),
@@ -122,19 +123,18 @@ impl<'info> Subscribe<'info> {
         Ok(())
     }
 
-    pub fn delegate(&mut self, amount: u64) -> Result<()> {
+    pub fn set_authority(&mut self) -> Result<()> {
+        // it might be a case that we are already a authority
         let ctx = CpiContext::new(
             self.token_program.to_account_info(),
-            ApproveChecked {
-                to: self.subscriber_mint_ata.to_account_info(),
-                mint: self.mint.to_account_info(),
-                delegate: self.user_subscription.to_account_info(), // users subscription account has delegate access (or should i delegate to a new only delegate pda?)
-                authority: self.subscriber.to_account_info(),
+            SetAuthority {
+                current_authority: self.subscriber.to_account_info(),
+                account_or_mint: self.subscriber_mint_ata.to_account_info(),
             },
         );
 
-        // is this amount used up once used or the max cap a delegate can transfer at once?
-        approve_checked(ctx, amount, self.mint.decimals)
+        // Add authority
+        set_authority(ctx, AuthorityType::AccountOwner, None)
     }
 
     pub fn initialize_cron(&mut self, bumps: &SubscribeBumps) -> Result<()> {

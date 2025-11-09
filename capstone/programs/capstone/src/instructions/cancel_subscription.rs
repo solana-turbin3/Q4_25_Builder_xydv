@@ -4,10 +4,23 @@ use anchor_spl::{
     token_interface::{revoke, Mint, Revoke, TokenAccount, TokenInterface},
 };
 
+use crate::{
+    events::CancelSubscriptionEvent,
+    states::{UserSubscription, SUBSCRIPTION_SEED},
+};
+
 #[derive(Accounts)]
 pub struct CancelSubscription<'info> {
     #[account(mut)]
     pub subscriber: Signer<'info>,
+
+    #[account(
+        mut,
+        close = subscriber,
+        seeds = [SUBSCRIPTION_SEED, subscriber.key.as_ref(), user_subscription.subscription.key().as_ref()],
+        bump = user_subscription.bump
+    )]
+    pub user_subscription: Account<'info, UserSubscription>,
 
     #[account(
         // address = subscription_plan.mint @ SubscriptionError::MintMismatch,
@@ -26,6 +39,18 @@ pub struct CancelSubscription<'info> {
 }
 
 impl<'info> CancelSubscription<'info> {
+    pub fn cancel_subscription(&mut self) -> Result<()> {
+        self.revoke_delegate()?;
+        self.close_cron()?;
+
+        emit!(CancelSubscriptionEvent {
+            subscriber: self.subscriber.key(),
+            subscription: self.user_subscription.subscription.key()
+        });
+
+        Ok(())
+    }
+
     pub fn revoke_delegate(&mut self) -> Result<()> {
         let ctx = CpiContext::new(
             self.token_program.to_account_info(),
@@ -38,5 +63,9 @@ impl<'info> CancelSubscription<'info> {
         // revokes authority even if no delegate is set
         // https://github.com/solana-program/token/blob/a7c488ca39ed4cd71a87950ed854929816e9099f/program/src/processor.rs#L414
         revoke(ctx)
+    }
+
+    pub fn close_cron(&mut self) -> Result<()> {
+        todo!()
     }
 }
