@@ -29,4 +29,8 @@ pub mod capstone {
     pub fn charge_user(_ctx: Context<ChargeUser>) -> Result<()> {
         Ok(())
     }
+
+    pub fn cancel_subscription(ctx: Context<CancelSubscription>) -> Result<()> {
+        ctx.accounts.revoke_delegate()
+    }
 }
