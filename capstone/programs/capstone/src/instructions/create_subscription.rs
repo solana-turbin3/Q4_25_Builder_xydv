@@ -13,7 +13,9 @@ use clockwork_cron::Schedule;
 
 use crate::{
     error::SubscriptionError,
-    states::{SubscriptionPlan, PLAN_SEED, USDC_PUBKEY, VAULT_SEED},
+    states::{
+        GlobalState, SubscriptionPlan, GLOBAL_STATE_SEED, PLAN_SEED, USDC_PUBKEY, VAULT_SEED,
+    },
 };
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
@@ -59,6 +61,12 @@ pub struct CreateSubscription<'info> {
     )]
     pub fees_vault: SystemAccount<'info>,
 
+    #[account(
+        seeds = [GLOBAL_STATE_SEED],
+        bump = global_state.bump
+    )]
+    pub global_state: Account<'info, GlobalState>,
+
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
@@ -73,10 +81,11 @@ impl<'info> CreateSubscription<'info> {
     ) -> Result<()> {
         require!(args.amount > 0, SubscriptionError::InvalidAmount);
         require!(args.name.len() != 0, SubscriptionError::InvalidName);
-        require!(
-            Schedule::from_str(&args.schedule).is_ok(),
-            SubscriptionError::InvalidSchedule
-        );
+        // maybe its diff for task other than cron
+        // require!(
+        //     Schedule::from_str(&args.schedule).is_ok(),
+        //     SubscriptionError::InvalidSchedule
+        // );
 
         self.subscription_plan.set_inner(SubscriptionPlan {
             merchant: self.merchant.key(),
@@ -94,7 +103,7 @@ impl<'info> CreateSubscription<'info> {
     }
 
     // charge the one-time fees for merchant for each SubscriptionPlan initialization
-    pub fn charge_fees(&mut self, lamports: u64) -> Result<()> {
+    pub fn charge_fees(&mut self) -> Result<()> {
         let ctx = CpiContext::new(
             self.system_program.to_account_info(),
             Transfer {
@@ -103,6 +112,6 @@ impl<'info> CreateSubscription<'info> {
             },
         );
 
-        transfer(ctx, lamports)
+        transfer(ctx, self.global_state.fees)
     }
 }

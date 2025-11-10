@@ -7,6 +7,7 @@
   "dependencies": {
     "@coral-xyz/anchor": "0.32.1",
     "@helium/tuktuk-sdk": "^0.0.9",
+    "@solana/spl-token": "^0.4.14",
     "axios": "^1.13.2"
   },
   "devDependencies": {
