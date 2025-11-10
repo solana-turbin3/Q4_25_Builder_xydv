@@ -65,6 +65,7 @@ pub struct ChargeUser<'info> {
         seeds = [b"queue_authority"],
         bump // optimize later
     )]
+    /// CHECK: hh
     pub queue_authority: UncheckedAccount<'info>,
 
     // programs

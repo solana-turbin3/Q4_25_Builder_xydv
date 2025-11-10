@@ -17,4 +17,6 @@ pub enum SubscriptionError {
     MaxRetriesReached,
     #[msg("arithmetic error")]
     ArithmeticError,
+    #[msg("invalid signer")]
+    InvalidSigner,
 }

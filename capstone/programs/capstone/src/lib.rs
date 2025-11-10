@@ -14,6 +14,10 @@ use states::*;
 pub mod capstone {
     use super::*;
 
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+        ctx.accounts.initialize(&ctx.bumps)
+    }
+
     pub fn create_subscription(
         ctx: Context<CreateSubscription>,
         args: CreateSubscriptionArgs,
