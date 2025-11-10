@@ -17,5 +17,6 @@ pub struct SubscriptionPlan {
 }
 
 pub const PLAN_SEED: &[u8] = b"plan";
-pub const VAULT_SEED: &[u8] = b"vault";
+pub const VAULT_SEED: &[u8] = b"fees_vault";
 pub const FEES: u64 = 10_000_000; // 0.01 SOL per subscription, for now no automation charges (maybe add in future)
+pub const USDC_PUBKEY: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");

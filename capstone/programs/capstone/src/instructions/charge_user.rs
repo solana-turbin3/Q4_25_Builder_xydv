@@ -1,29 +1,23 @@
-#![allow(warnings)]
-
-use std::sync::{Arc, Mutex};
+// this instruction is recurring task
 
 use anchor_lang::{prelude::*, solana_program::instruction::Instruction, InstructionData};
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::Token,
-    token_interface::{
-        transfer_checked, Mint, PermanentDelegateInitialize, TokenAccount, TokenInterface,
-        TransferChecked,
-    },
+    token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
 use tuktuk_program::{
     compile_transaction,
-    cron::{
-        cpi::{accounts::AddCronTransactionV0, add_cron_transaction_v0},
-        program::Cron,
-        types::{AddCronTransactionArgsV0, TransactionSourceV0},
+    tuktuk::{
+        cpi::{accounts::QueueTaskV0, queue_task_v0},
+        program::Tuktuk,
     },
-    tuktuk::program::Tuktuk,
+    types::QueueTaskArgsV0,
+    TaskQueueV0,
 };
 
 use crate::{
     error::SubscriptionError,
-    states::{SubscriptionPlan, UserSubscription, SUBSCRIPTION_SEED},
+    states::{SubscriptionPlan, UserSubscription, SUBSCRIBER_VAULT_SEED, SUBSCRIPTION_SEED},
 };
 
 #[derive(Accounts)]
@@ -44,47 +38,57 @@ pub struct ChargeUser<'info> {
     )]
     pub subscription_plan: Account<'info, SubscriptionPlan>,
     #[account(
-        associated_token::mint = mint,
-        associated_token::authority = subscriber,
-        associated_token::token_program = token_program
+        seeds = [SUBSCRIBER_VAULT_SEED, subscriber.key.as_ref()],
+        token::mint = mint,
+        token::authority = subscriber_vault,
+        token::token_program = token_program,
+        bump = user_subscription.subscriber_vault_bump
     )]
-    pub subscriber_mint_ata: InterfaceAccount<'info, TokenAccount>,
+    pub subscriber_vault: InterfaceAccount<'info, TokenAccount>,
     #[account(
         associated_token::mint = mint,
         associated_token::authority = merchant,
         associated_token::token_program = token_program
     )]
-    pub merchant_mint_ata: InterfaceAccount<'info, TokenAccount>,
+    pub merchant_ata: InterfaceAccount<'info, TokenAccount>,
     #[account(
         address = subscription_plan.mint @ SubscriptionError::MintMismatch,
         mint::token_program = token_program
     )]
     pub mint: InterfaceAccount<'info, Mint>,
 
+    // tuktuk
+    #[account(mut)]
+    pub task_queue: Account<'info, TaskQueueV0>,
+
+    #[account(
+        seeds = [b"queue_authority"],
+        bump // optimize later
+    )]
+    pub queue_authority: UncheckedAccount<'info>,
+
     // programs
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Interface<'info, TokenInterface>,
     pub tuktuk_program: Program<'info, Tuktuk>,
-    pub cron_program: Program<'info, Cron>,
     pub system_program: Program<'info, System>,
 }
 
 impl<'info> ChargeUser<'info> {
     pub fn transfer_tokens(&mut self) -> Result<()> {
         let signer_seeds: &[&[&[u8]]] = &[&[
-            SUBSCRIPTION_SEED,
-            &self.subscriber.key().to_bytes(),
-            &self.subscription_plan.key().to_bytes(),
-            &[self.user_subscription.bump],
+            SUBSCRIBER_VAULT_SEED,
+            self.subscriber.key.as_ref(),
+            &[self.user_subscription.subscriber_vault_bump],
         ]];
 
         let ctx = CpiContext::new_with_signer(
             self.token_program.to_account_info(),
             TransferChecked {
-                from: self.subscriber_mint_ata.to_account_info(),
-                to: self.merchant_mint_ata.to_account_info(),
+                from: self.subscriber_vault.to_account_info(),
+                to: self.merchant_ata.to_account_info(),
                 mint: self.mint.to_account_info(),
-                authority: self.user_subscription.to_account_info(),
+                authority: self.subscriber_vault.to_account_info(),
             },
             signer_seeds,
         );
@@ -92,7 +96,7 @@ impl<'info> ChargeUser<'info> {
         transfer_checked(ctx, self.subscription_plan.amount, self.mint.decimals)
     }
 
-    pub fn add_cron_transaction(&mut self) -> Result<()> {
+    pub fn add_next_transaction_to_queue(&mut self) -> Result<()> {
         let ixs = vec![Instruction {
             program_id: crate::ID,
             accounts: crate::accounts::ChargeUser {
@@ -100,13 +104,14 @@ impl<'info> ChargeUser<'info> {
                 merchant: self.merchant.key(),
                 user_subscription: self.user_subscription.key(),
                 subscription_plan: self.subscription_plan.key(),
-                subscriber_mint_ata: self.subscriber_mint_ata.key(),
-                merchant_mint_ata: self.merchant_mint_ata.key(),
+                merchant_ata: self.merchant_ata.key(),
                 mint: self.mint.key(),
+                subscriber_vault: self.subscriber_vault.key(),
+                task_queue: self.task_queue.key(),
+                queue_authority: self.queue_authority.key(),
                 associated_token_program: self.associated_token_program.key(),
                 token_program: self.token_program.key(),
                 tuktuk_program: self.tuktuk_program.key(),
-                cron_program: self.cron_program.key(),
                 system_program: self.system_program.key(),
             }
             .to_account_metas(None),
@@ -121,22 +126,27 @@ impl<'info> ChargeUser<'info> {
         ]];
 
         let ctx = CpiContext::new_with_signer(
-            self.cron_program.to_account_info(),
-            AddCronTransactionV0 {
+            self.tuktuk_program.to_account_info(),
+            QueueTaskV0 {
                 payer: todo!(),
-                authority: todo!(),
-                cron_job: todo!(),
-                cron_job_transaction: todo!(),
+                queue_authority: self.queue_authority.to_account_info(),
+                task_queue_authority: todo!(),
+                task_queue: todo!(),
+                task: todo!(),
                 system_program: todo!(),
             },
             signer_seeds,
         );
 
-        add_cron_transaction_v0(
+        queue_task_v0(
             ctx,
-            AddCronTransactionArgsV0 {
-                index: todo!(), // todo: add state
-                transaction_source: TransactionSourceV0::CompiledV0(compiled_tx.into()),
+            QueueTaskArgsV0 {
+                id: todo!(),
+                trigger: todo!(),
+                transaction: todo!(),
+                crank_reward: todo!(),
+                free_tasks: todo!(),
+                description: todo!(),
             },
         )
     }
@@ -150,11 +160,11 @@ impl<'info> ChargeUser<'info> {
 
         todo!("create task for next day");
 
-        match self.user_subscription.failure_count.checked_add(1) {
-            Some(x) => self.user_subscription.failure_count = x,
-            None => return err!(SubscriptionError::ArithmeticError),
-        };
+        // match self.user_subscription.failure_count.checked_add(1) {
+        //     Some(x) => self.user_subscription.failure_count = x,
+        //     None => return err!(SubscriptionError::ArithmeticError),
+        // };
 
-        Ok(())
+        // Ok(())
     }
 }

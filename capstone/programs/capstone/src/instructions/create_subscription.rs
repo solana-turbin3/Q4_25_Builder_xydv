@@ -13,7 +13,7 @@ use clockwork_cron::Schedule;
 
 use crate::{
     error::SubscriptionError,
-    states::{SubscriptionPlan, PLAN_SEED, VAULT_SEED},
+    states::{SubscriptionPlan, PLAN_SEED, USDC_PUBKEY, VAULT_SEED},
 };
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
@@ -39,7 +39,8 @@ pub struct CreateSubscription<'info> {
     pub subscription_plan: Account<'info, SubscriptionPlan>,
 
     #[account(
-        mint::token_program = token_program
+        mint::token_program = token_program,
+        constraint = mint.key().eq(&USDC_PUBKEY) @ SubscriptionError::MintMismatch // for now only usdc
     )]
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(
@@ -49,14 +50,14 @@ pub struct CreateSubscription<'info> {
         associated_token::authority = merchant,
         associated_token::token_program = token_program
     )]
-    pub merchant_mint_ata: InterfaceAccount<'info, TokenAccount>,
+    pub merchant_ata: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
         mut,
         seeds = [VAULT_SEED],
         bump
     )]
-    pub vault: SystemAccount<'info>,
+    pub fees_vault: SystemAccount<'info>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Interface<'info, TokenInterface>,
@@ -80,7 +81,7 @@ impl<'info> CreateSubscription<'info> {
         self.subscription_plan.set_inner(SubscriptionPlan {
             merchant: self.merchant.key(),
             mint: self.mint.key(),
-            merchant_ata: self.merchant_mint_ata.key(),
+            merchant_ata: self.merchant_ata.key(),
             name: args.name,
             amount: args.amount,
             active: true,
@@ -98,7 +99,7 @@ impl<'info> CreateSubscription<'info> {
             self.system_program.to_account_info(),
             Transfer {
                 from: self.merchant.to_account_info(),
-                to: self.vault.to_account_info(),
+                to: self.fees_vault.to_account_info(),
             },
         );
 
