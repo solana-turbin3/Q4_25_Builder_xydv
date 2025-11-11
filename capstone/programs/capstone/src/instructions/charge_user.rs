@@ -12,12 +12,15 @@ use tuktuk_program::{
         program::Tuktuk,
     },
     types::QueueTaskArgsV0,
-    TaskQueueV0,
+    TaskQueueV0, TransactionSourceV0, TriggerV0,
 };
 
 use crate::{
     error::SubscriptionError,
-    states::{SubscriptionPlan, UserSubscription, SUBSCRIBER_VAULT_SEED, SUBSCRIPTION_SEED},
+    states::{
+        GlobalState, SubscriptionPlan, UserSubscription, GLOBAL_STATE_SEED, QUEUE_AUTHORITY_SEED,
+        SUBSCRIBER_VAULT_SEED, SUBSCRIPTION_SEED,
+    },
 };
 
 #[derive(Accounts)]
@@ -46,6 +49,8 @@ pub struct ChargeUser<'info> {
     )]
     pub subscriber_vault: InterfaceAccount<'info, TokenAccount>,
     #[account(
+        init_if_needed,
+        payer = subscriber,
         associated_token::mint = mint,
         associated_token::authority = merchant,
         associated_token::token_program = token_program
@@ -62,11 +67,16 @@ pub struct ChargeUser<'info> {
     pub task_queue: Account<'info, TaskQueueV0>,
 
     #[account(
-        seeds = [b"queue_authority"],
-        bump // optimize later
+        seeds = [QUEUE_AUTHORITY_SEED],
+        bump = global_state.queue_authority_bump
     )]
-    /// CHECK: hh
+    /// CHECK: via seeds
     pub queue_authority: UncheckedAccount<'info>,
+    #[account(
+        seeds = [GLOBAL_STATE_SEED],
+        bump = global_state.bump
+    )]
+    pub global_state: Account<'info, GlobalState>,
 
     // programs
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -97,7 +107,7 @@ impl<'info> ChargeUser<'info> {
         transfer_checked(ctx, self.subscription_plan.amount, self.mint.decimals)
     }
 
-    pub fn add_next_transaction_to_queue(&mut self) -> Result<()> {
+    pub fn add_next_transaction_to_queue(&mut self, task_id: u16) -> Result<()> {
         let ixs = vec![Instruction {
             program_id: crate::ID,
             accounts: crate::accounts::ChargeUser {
@@ -110,6 +120,7 @@ impl<'info> ChargeUser<'info> {
                 subscriber_vault: self.subscriber_vault.key(),
                 task_queue: self.task_queue.key(),
                 queue_authority: self.queue_authority.key(),
+                global_state: self.global_state.key(),
                 associated_token_program: self.associated_token_program.key(),
                 token_program: self.token_program.key(),
                 tuktuk_program: self.tuktuk_program.key(),
@@ -129,12 +140,12 @@ impl<'info> ChargeUser<'info> {
         let ctx = CpiContext::new_with_signer(
             self.tuktuk_program.to_account_info(),
             QueueTaskV0 {
-                payer: todo!(),
+                payer: self.queue_authority.to_account_info(),
                 queue_authority: self.queue_authority.to_account_info(),
-                task_queue_authority: todo!(),
-                task_queue: todo!(),
-                task: todo!(),
-                system_program: todo!(),
+                task_queue: self.task_queue.to_account_info(),
+                task_queue_authority: self.task_queue.to_account_info(),
+                task: self.task_queue.to_account_info(),
+                system_program: self.system_program.to_account_info(),
             },
             signer_seeds,
         );
@@ -142,12 +153,12 @@ impl<'info> ChargeUser<'info> {
         queue_task_v0(
             ctx,
             QueueTaskArgsV0 {
-                id: todo!(),
-                trigger: todo!(),
-                transaction: todo!(),
-                crank_reward: todo!(),
-                free_tasks: todo!(),
-                description: todo!(),
+                id: task_id,
+                trigger: TriggerV0::Now,
+                transaction: TransactionSourceV0::CompiledV0(compiled_tx),
+                crank_reward: None,
+                free_tasks: 1, // this is for recursion, this task will queue one more task
+                description: format!(""),
             },
         )
     }

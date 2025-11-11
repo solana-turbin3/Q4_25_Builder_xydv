@@ -29,6 +29,10 @@ pub mod capstone {
         ctx.accounts.subscribe(&ctx.bumps)
     }
 
+    pub fn charge_user_recurring(_ctx: Context<ChargeUserRecurring>) -> Result<()> {
+        Ok(())
+    }
+
     pub fn charge_user(_ctx: Context<ChargeUser>) -> Result<()> {
         Ok(())
     }

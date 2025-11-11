@@ -4,15 +4,14 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
-use tuktuk_program::{
-    cron::program::Cron, tuktuk::program::Tuktuk, TaskQueueAuthorityV0, TaskQueueV0,
-};
+use tuktuk_program::{tuktuk::program::Tuktuk, TaskQueueAuthorityV0};
 
 use crate::{
     error::SubscriptionError,
     events::SubscribeEvent,
     states::{
-        Status, SubscriptionPlan, UserSubscription, SUBSCRIBER_VAULT_SEED, SUBSCRIPTION_SEED,
+        Status, SubscriptionPlan, UserSubscription, QUEUE_AUTHORITY_SEED, SUBSCRIBER_VAULT_SEED,
+        SUBSCRIPTION_SEED,
     },
 };
 
@@ -40,7 +39,7 @@ pub struct Subscribe<'info> {
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(
         init_if_needed,
-        payer = subscriber,
+        payer = subscriber, // ??
         associated_token::mint = mint,
         associated_token::authority = subscriber,
         associated_token::token_program = token_program
@@ -58,28 +57,29 @@ pub struct Subscribe<'info> {
     pub subscriber_vault: InterfaceAccount<'info, TokenAccount>,
 
     // TUKTUK ACCOUNTS
+    #[account(
+        seeds = [QUEUE_AUTHORITY_SEED],
+        bump
+    )]
+    /// CHECK: via seeds
+    pub queue_authority: UncheckedAccount<'info>,
     #[account(mut)]
-    pub task_queue: Account<'info, TaskQueueV0>,
+    /// CHECK: via signer, only can call this instruction
+    pub task_queue: UncheckedAccount<'info>,
     #[account(
       seeds = [b"task_queue_authority", task_queue.key().as_ref(), queue_authority.key().as_ref()],
       bump = task_queue_authority.bump_seed,
       seeds::program = tuktuk_program::tuktuk::ID,
     )]
     pub task_queue_authority: Account<'info, TaskQueueAuthorityV0>,
-    #[account(
-          seeds = [b"queue_authority"],
-          bump
-    )]
-    /// CHECK: This is a PDA that will be the authority on the task queue
-    pub queue_authority: UncheckedAccount<'info>,
     #[account(mut)]
     /// CHECK: Initialized in CPI
     pub task: AccountInfo<'info>,
+
     // PROGRAMS
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Interface<'info, TokenInterface>,
     pub tuktuk_program: Program<'info, Tuktuk>,
-    pub cron_program: Program<'info, Cron>,
     pub system_program: Program<'info, System>,
 }
 
@@ -118,8 +118,8 @@ impl<'info> Subscribe<'info> {
             self.token_program.to_account_info(),
             TransferChecked {
                 from: self.subscriber_ata.to_account_info(),
-                mint: self.mint.to_account_info(),
                 to: self.subscriber_vault.to_account_info(),
+                mint: self.mint.to_account_info(),
                 authority: self.subscriber.to_account_info(),
             },
         );
