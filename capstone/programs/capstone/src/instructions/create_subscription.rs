@@ -9,7 +9,6 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
-use clockwork_cron::Schedule;
 
 use crate::{
     error::SubscriptionError,
@@ -22,7 +21,7 @@ use crate::{
 pub struct CreateSubscriptionArgs {
     pub name: String,
     pub amount: u64,
-    pub schedule: String,
+    pub interval: i64,
     pub max_failure_count: u8,
 }
 
@@ -81,11 +80,6 @@ impl<'info> CreateSubscription<'info> {
     ) -> Result<()> {
         require!(args.amount > 0, SubscriptionError::InvalidAmount);
         require!(args.name.len() != 0, SubscriptionError::InvalidName);
-        // maybe its diff for task other than cron
-        // require!(
-        //     Schedule::from_str(&args.schedule).is_ok(),
-        //     SubscriptionError::InvalidSchedule
-        // );
 
         self.subscription_plan.set_inner(SubscriptionPlan {
             merchant: self.merchant.key(),
@@ -94,7 +88,7 @@ impl<'info> CreateSubscription<'info> {
             name: args.name,
             amount: args.amount,
             active: true,
-            schedule: args.schedule,
+            interval: args.interval,
             max_failure_count: args.max_failure_count,
             bump: bumps.subscription_plan,
         });

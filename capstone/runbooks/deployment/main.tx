@@ -14,3 +14,21 @@ action "deploy_capstone" "svm::deploy_program" {
     payer = signer.payer
     instant_surfnet_deployment = true
 }
+
+action "add_usdc" "svm::setup_surfnet" {
+    set_account {
+        public_key = "usS5L6vdNe5J13VqfsXyHZ2SJpgkHWCcKiBMd2iomYo"
+        lamports = 1000000000000
+    }
+
+    set_account {
+        public_key = "HW6eUo65qrpNYKjc1EWTd5iW264b1vsyJvpAWb5u1NiY"
+        lamports = 1000000000000
+    }
+
+    set_token_account {
+        public_key = "usS5L6vdNe5J13VqfsXyHZ2SJpgkHWCcKiBMd2iomYo"
+        token = "usdc"
+        amount = 1000000000
+    }
+}

@@ -57,6 +57,11 @@ impl<'info> ChargeUserRecurring<'info> {
     pub fn charge_user_recurring(&mut self) -> Result<RunTaskReturnV0> {
         self.transfer_tokens()?;
 
+        match self.user_subscription.transaction_id.checked_add(1) {
+            Some(x) => self.user_subscription.transaction_id = x,
+            None => return err!(SubscriptionError::ArithmeticError),
+        }
+
         let instructions = vec![Instruction {
             program_id: crate::ID,
             accounts: crate::accounts::ChargeUserRecurring {
@@ -79,11 +84,16 @@ impl<'info> ChargeUserRecurring<'info> {
 
         Ok(RunTaskReturnV0 {
             tasks: vec![TaskReturnV0 {
-                trigger: TriggerV0::Now,
+                trigger: TriggerV0::Timestamp(
+                    self.user_subscription
+                        .last_exec_ts
+                        .checked_add(self.subscription_plan.interval)
+                        .unwrap(),
+                ),
                 transaction: TransactionSourceV0::CompiledV0(compiled_tx),
                 crank_reward: None,
                 free_tasks: 1,
-                description: format!(""),
+                description: "payment".to_string(),
             }],
             accounts: vec![],
         })

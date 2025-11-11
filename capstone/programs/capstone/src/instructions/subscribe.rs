@@ -1,22 +1,29 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, solana_program::instruction::Instruction, InstructionData};
 
 use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
-use tuktuk_program::{tuktuk::program::Tuktuk, TaskQueueAuthorityV0};
+use tuktuk_program::{
+    compile_transaction,
+    tuktuk::{
+        cpi::{accounts::QueueTaskV0, queue_task_v0},
+        program::Tuktuk,
+    },
+    types::QueueTaskArgsV0,
+    TaskQueueAuthorityV0, TransactionSourceV0, TriggerV0,
+};
 
 use crate::{
     error::SubscriptionError,
     events::SubscribeEvent,
     states::{
-        Status, SubscriptionPlan, UserSubscription, QUEUE_AUTHORITY_SEED, SUBSCRIBER_VAULT_SEED,
-        SUBSCRIPTION_SEED,
+        GlobalState, Status, SubscriptionPlan, UserSubscription, GLOBAL_STATE_SEED,
+        QUEUE_AUTHORITY_SEED, SUBSCRIBER_VAULT_SEED, SUBSCRIPTION_SEED,
     },
 };
 
 #[derive(Accounts)]
-#[instruction(name: String)]
 pub struct Subscribe<'info> {
     #[account(mut)]
     pub subscriber: Signer<'info>,
@@ -38,8 +45,7 @@ pub struct Subscribe<'info> {
     )]
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(
-        init_if_needed,
-        payer = subscriber, // ??
+        mut,
         associated_token::mint = mint,
         associated_token::authority = subscriber,
         associated_token::token_program = token_program
@@ -56,16 +62,23 @@ pub struct Subscribe<'info> {
     )]
     pub subscriber_vault: InterfaceAccount<'info, TokenAccount>,
 
-    // TUKTUK ACCOUNTS
     #[account(
-        seeds = [QUEUE_AUTHORITY_SEED],
-        bump
+        seeds = [GLOBAL_STATE_SEED],
+        bump = global_state.bump
     )]
-    /// CHECK: via seeds
-    pub queue_authority: UncheckedAccount<'info>,
+    pub global_state: Account<'info, GlobalState>,
+
+    // TUKTUK ACCOUNTS
     #[account(mut)]
     /// CHECK: via signer, only can call this instruction
     pub task_queue: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [QUEUE_AUTHORITY_SEED],
+        bump = global_state.queue_authority_bump
+    )]
+    /// CHECK: via seeds
+    pub queue_authority: UncheckedAccount<'info>,
     #[account(
       seeds = [b"task_queue_authority", task_queue.key().as_ref(), queue_authority.key().as_ref()],
       bump = task_queue_authority.bump_seed,
@@ -95,12 +108,13 @@ impl<'info> Subscribe<'info> {
             subscription: self.subscription_plan.key(),
             status: Status::Active,
             failure_count: 0,
-            next_cron_transaction_id: 0,
-            queue_authority_bump: bumps.queue_authority,
+            transaction_id: 0,
             last_exec_ts: Clock::get()?.unix_timestamp,
             subscriber_vault_bump: bumps.subscriber_vault,
             bump: bumps.user_subscription,
         });
+
+        self.schedule(self.user_subscription.transaction_id)?;
 
         // emit events so that it can be used as trigger for merchant backend
         emit!(SubscribeEvent {
@@ -112,7 +126,7 @@ impl<'info> Subscribe<'info> {
         Ok(())
     }
 
-    // transfer one cycle plan amount on subscribe
+    // transfer one cycle plan amount on subscribe (todo: if vault already has some usdc, dont transfer than)
     pub fn transfer(&mut self, amount: u64) -> Result<()> {
         let ctx = CpiContext::new(
             self.token_program.to_account_info(),
@@ -125,5 +139,57 @@ impl<'info> Subscribe<'info> {
         );
 
         transfer_checked(ctx, amount, self.mint.decimals)
+    }
+
+    pub fn schedule(&mut self, task_id: u16) -> Result<()> {
+        let ixs = vec![Instruction {
+            program_id: crate::ID,
+            accounts: crate::accounts::ChargeUserRecurring {
+                subscriber: self.subscriber.key(),
+                merchant: self.subscription_plan.merchant.key(),
+                user_subscription: self.user_subscription.key(),
+                subscription_plan: self.subscription_plan.key(),
+                merchant_ata: self.subscription_plan.merchant_ata.key(),
+                mint: self.mint.key(),
+                subscriber_vault: self.subscriber_vault.key(),
+                associated_token_program: self.associated_token_program.key(),
+                token_program: self.token_program.key(),
+                system_program: self.system_program.key(),
+            }
+            .to_account_metas(None),
+            data: crate::instruction::ChargeUserRecurring.data(),
+        }];
+
+        let (compiled_tx, _) = compile_transaction(ixs, vec![])?;
+
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            QUEUE_AUTHORITY_SEED,
+            &[self.global_state.queue_authority_bump],
+        ]];
+
+        let ctx = CpiContext::new_with_signer(
+            self.tuktuk_program.to_account_info(),
+            QueueTaskV0 {
+                payer: self.queue_authority.to_account_info(),
+                queue_authority: self.queue_authority.to_account_info(),
+                task_queue: self.task_queue.to_account_info(),
+                task_queue_authority: self.task_queue_authority.to_account_info(),
+                task: self.task.to_account_info(),
+                system_program: self.system_program.to_account_info(),
+            },
+            signer_seeds,
+        );
+
+        queue_task_v0(
+            ctx,
+            QueueTaskArgsV0 {
+                id: task_id,
+                trigger: TriggerV0::Now,
+                transaction: TransactionSourceV0::CompiledV0(compiled_tx),
+                crank_reward: None,
+                free_tasks: 1, // this is for recursion, this task will queue one more task
+                description: "payment for subscription".to_string(),
+            },
+        )
     }
 }

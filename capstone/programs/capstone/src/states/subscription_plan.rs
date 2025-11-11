@@ -11,8 +11,7 @@ pub struct SubscriptionPlan {
     pub max_failure_count: u8,
     #[max_len(50)]
     pub name: String,
-    #[max_len(10)] // todo: get exact max_size needed for schedule
-    pub schedule: String,
+    pub interval: i64,
     pub bump: u8,
 }
 
