@@ -43,6 +43,9 @@ describe("capstone", () => {
   );
 
   const taskQueueName = `test-${Math.random().toString(36).substring(2, 15)}`;
+
+  console.log(taskQueueName);
+
   let taskQueue: anchor.web3.PublicKey;
   let tuktukProgram: Program<Tuktuk>;
 
@@ -108,7 +111,7 @@ describe("capstone", () => {
           minCrankReward: new anchor.BN(1_000_000),
           capacity: 1000,
           lookupTables: [],
-          staleTaskAge: 60,
+          staleTaskAge: 10000,
         })
         .accounts({
           tuktukConfig,
@@ -192,11 +195,12 @@ describe("capstone", () => {
 
       await program.methods
         .subscribe()
-        .accounts({
+        .accountsPartial({
           subscriber: subscriber.publicKey,
           subscriptionPlan: subscriptionPlanPda,
           mint: USDC_MINT,
           task: taskKey(taskQueue, nextTask)[0],
+          globalState: globalStatePda,
           taskQueue,
           tokenProgram: TOKEN_PROGRAM_ID,
         })

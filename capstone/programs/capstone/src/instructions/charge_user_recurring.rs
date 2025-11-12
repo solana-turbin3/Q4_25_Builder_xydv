@@ -9,7 +9,10 @@ use tuktuk_program::{
 
 use crate::{
     error::SubscriptionError,
-    states::{SubscriptionPlan, UserSubscription, SUBSCRIBER_VAULT_SEED, SUBSCRIPTION_SEED},
+    events::ChargeEvent,
+    states::{
+        Status, SubscriptionPlan, UserSubscription, SUBSCRIBER_VAULT_SEED, SUBSCRIPTION_SEED,
+    },
 };
 
 #[derive(Accounts)]
@@ -58,22 +61,79 @@ pub struct ChargeUserRecurring<'info> {
 
 impl<'info> ChargeUserRecurring<'info> {
     pub fn charge_user_recurring(&mut self) -> Result<RunTaskReturnV0> {
-        self.transfer_tokens()?;
+        if self.user_subscription.failure_count >= self.subscription_plan.max_failure_count {
+            msg!("max failure count reached, cancelling subscription");
 
-        // is this required?
-        // match self.user_subscription.transaction_id.checked_add(1) {
-        //     Some(x) => self.user_subscription.transaction_id = x,
-        //     None => return err!(SubscriptionError::ArithmeticError),
-        // }
+            self.user_subscription.status = Status::Failed;
 
-        let next_exec_ts = self
-            .user_subscription
-            .last_exec_ts
-            .checked_add(self.subscription_plan.interval)
-            .unwrap();
+            // emit!();
+            // close_cron!()
+        }
+        // improvements: check cpi failure
+        if self.subscriber_vault.amount < self.subscription_plan.amount {
+            msg!("not enough amount of tokens");
 
-        self.user_subscription.last_exec_ts = next_exec_ts;
+            match self.user_subscription.failure_count.checked_add(1) {
+                Some(x) => self.user_subscription.failure_count = x,
+                None => return err!(SubscriptionError::ArithmeticError),
+            };
 
+            let one_day_later = self
+                .user_subscription
+                .last_exec_ts
+                .checked_add(24 * 60 * 60)
+                .unwrap();
+
+            self.schedule_next_task(one_day_later)
+        } else {
+            self.transfer_tokens()?;
+
+            emit!(ChargeEvent {
+                subscriber: self.subscriber.key(),
+                subscription: self.subscription_plan.key(),
+                amount: self.subscription_plan.amount
+            });
+
+            // is this required?
+            // match self.user_subscription.transaction_id.checked_add(1) {
+            //     Some(x) => self.user_subscription.transaction_id = x,
+            //     None => return err!(SubscriptionError::ArithmeticError),
+            // }
+
+            let next_exec_ts = self
+                .user_subscription
+                .last_exec_ts
+                .checked_add(self.subscription_plan.interval)
+                .unwrap();
+
+            self.user_subscription.last_exec_ts = next_exec_ts;
+
+            self.schedule_next_task(next_exec_ts)
+        }
+    }
+
+    pub fn transfer_tokens(&mut self) -> Result<()> {
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            SUBSCRIBER_VAULT_SEED,
+            self.subscriber.key.as_ref(),
+            &[self.user_subscription.subscriber_vault_bump],
+        ]];
+
+        let ctx = CpiContext::new_with_signer(
+            self.token_program.to_account_info(),
+            TransferChecked {
+                from: self.subscriber_vault.to_account_info(),
+                to: self.merchant_ata.to_account_info(),
+                mint: self.mint.to_account_info(),
+                authority: self.subscriber_vault.to_account_info(),
+            },
+            signer_seeds,
+        );
+
+        transfer_checked(ctx, self.subscription_plan.amount, self.mint.decimals)
+    }
+
+    pub fn schedule_next_task(&mut self, timestamp: i64) -> Result<RunTaskReturnV0> {
         let instructions = vec![Instruction {
             program_id: crate::ID,
             accounts: crate::accounts::ChargeUserRecurring {
@@ -96,7 +156,7 @@ impl<'info> ChargeUserRecurring<'info> {
 
         Ok(RunTaskReturnV0 {
             tasks: vec![TaskReturnV0 {
-                trigger: TriggerV0::Timestamp(next_exec_ts),
+                trigger: TriggerV0::Timestamp(timestamp),
                 transaction: TransactionSourceV0::CompiledV0(compiled_tx),
                 crank_reward: None,
                 free_tasks: 1,
@@ -104,26 +164,5 @@ impl<'info> ChargeUserRecurring<'info> {
             }],
             accounts: vec![],
         })
-    }
-
-    pub fn transfer_tokens(&mut self) -> Result<()> {
-        let signer_seeds: &[&[&[u8]]] = &[&[
-            SUBSCRIBER_VAULT_SEED,
-            self.subscriber.key.as_ref(),
-            &[self.user_subscription.subscriber_vault_bump],
-        ]];
-
-        let ctx = CpiContext::new_with_signer(
-            self.token_program.to_account_info(),
-            TransferChecked {
-                from: self.subscriber_vault.to_account_info(),
-                to: self.merchant_ata.to_account_info(),
-                mint: self.mint.to_account_info(),
-                authority: self.subscriber_vault.to_account_info(),
-            },
-            signer_seeds,
-        );
-
-        transfer_checked(ctx, self.subscription_plan.amount, self.mint.decimals)
     }
 }

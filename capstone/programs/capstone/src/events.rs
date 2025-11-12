@@ -10,6 +10,13 @@ pub struct SubscribeEvent {
 }
 
 #[event]
+pub struct ChargeEvent {
+    pub subscriber: Pubkey,
+    pub subscription: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
 pub struct CancelSubscriptionEvent {
     pub subscriber: Pubkey,
     pub subscription: Pubkey,

@@ -138,7 +138,7 @@ impl<'info> Subscribe<'info> {
             },
         );
 
-        transfer_checked(ctx, 10 * amount, self.mint.decimals)
+        transfer_checked(ctx, amount, self.mint.decimals)
     }
 
     pub fn schedule(&mut self, task_id: u16) -> Result<()> {
