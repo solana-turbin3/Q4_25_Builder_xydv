@@ -108,7 +108,7 @@ describe("capstone", () => {
           minCrankReward: new anchor.BN(1_000_000),
           capacity: 1000,
           lookupTables: [],
-          staleTaskAge: 10000,
+          staleTaskAge: 60,
         })
         .accounts({
           tuktukConfig,
@@ -144,7 +144,7 @@ describe("capstone", () => {
         .createSubscription({
           name,
           amount: new anchor.BN(1_000_000), // 1 USDC
-          interval: new anchor.BN(60_000),
+          interval: new anchor.BN(120),
           maxFailureCount: 3,
         })
         .accountsStrict({
@@ -172,7 +172,7 @@ describe("capstone", () => {
       );
       assert.equal(
         subscription.interval.toString(),
-        new anchor.BN(60_000).toString()
+        new anchor.BN(120).toString()
       );
       assert.equal(subscription.maxFailureCount, 3);
     });

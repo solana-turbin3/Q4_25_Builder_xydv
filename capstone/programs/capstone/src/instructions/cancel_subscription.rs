@@ -3,6 +3,15 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
+use tuktuk_program::{
+    compile_transaction,
+    tuktuk::{
+        cpi::{accounts::QueueTaskV0, queue_task_v0},
+        program::Tuktuk,
+    },
+    types::UpdateTaskQueueArgsV0,
+    TaskQueueAuthorityV0, TransactionSourceV0, TriggerV0,
+};
 
 use crate::{
     events::CancelSubscriptionEvent,

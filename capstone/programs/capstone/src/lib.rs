@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use tuktuk_program::RunTaskReturnV0;
 
 declare_id!("SubsfvX3BEXk4JpzwFXUAL5H51rZtyooPSTprzjGeTz");
 
@@ -11,6 +12,7 @@ use instructions::*;
 
 #[program]
 pub mod capstone {
+
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
@@ -29,8 +31,8 @@ pub mod capstone {
         ctx.accounts.subscribe(&ctx.bumps)
     }
 
-    pub fn charge_user_recurring(_ctx: Context<ChargeUserRecurring>) -> Result<()> {
-        Ok(())
+    pub fn charge_user_recurring(ctx: Context<ChargeUserRecurring>) -> Result<RunTaskReturnV0> {
+        ctx.accounts.charge_user_recurring()
     }
 
     // pub fn cancel_subscription(ctx: Context<CancelSubscription>) -> Result<()> {

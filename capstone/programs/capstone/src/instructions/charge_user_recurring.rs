@@ -19,6 +19,7 @@ pub struct ChargeUserRecurring<'info> {
     /// CHECK: called via tuktuk
     pub merchant: UncheckedAccount<'info>,
     #[account(
+        mut,
         seeds = [SUBSCRIPTION_SEED, subscriber.key.as_ref(), subscription_plan.key().as_ref()],
         bump = user_subscription.bump
     )]
@@ -28,14 +29,16 @@ pub struct ChargeUserRecurring<'info> {
     )]
     pub subscription_plan: Account<'info, SubscriptionPlan>,
     #[account(
-        seeds = [SUBSCRIBER_VAULT_SEED, subscriber.key.as_ref()],
+        mut,
         token::mint = mint,
         token::authority = subscriber_vault,
         token::token_program = token_program,
+        seeds = [SUBSCRIBER_VAULT_SEED, subscriber.key.as_ref()],
         bump = user_subscription.subscriber_vault_bump
     )]
     pub subscriber_vault: InterfaceAccount<'info, TokenAccount>,
     #[account(
+        mut,
         associated_token::mint = mint,
         associated_token::authority = merchant,
         associated_token::token_program = token_program
@@ -57,10 +60,19 @@ impl<'info> ChargeUserRecurring<'info> {
     pub fn charge_user_recurring(&mut self) -> Result<RunTaskReturnV0> {
         self.transfer_tokens()?;
 
-        match self.user_subscription.transaction_id.checked_add(1) {
-            Some(x) => self.user_subscription.transaction_id = x,
-            None => return err!(SubscriptionError::ArithmeticError),
-        }
+        // is this required?
+        // match self.user_subscription.transaction_id.checked_add(1) {
+        //     Some(x) => self.user_subscription.transaction_id = x,
+        //     None => return err!(SubscriptionError::ArithmeticError),
+        // }
+
+        let next_exec_ts = self
+            .user_subscription
+            .last_exec_ts
+            .checked_add(self.subscription_plan.interval)
+            .unwrap();
+
+        self.user_subscription.last_exec_ts = next_exec_ts;
 
         let instructions = vec![Instruction {
             program_id: crate::ID,
@@ -84,12 +96,7 @@ impl<'info> ChargeUserRecurring<'info> {
 
         Ok(RunTaskReturnV0 {
             tasks: vec![TaskReturnV0 {
-                trigger: TriggerV0::Timestamp(
-                    self.user_subscription
-                        .last_exec_ts
-                        .checked_add(self.subscription_plan.interval)
-                        .unwrap(),
-                ),
+                trigger: TriggerV0::Timestamp(next_exec_ts),
                 transaction: TransactionSourceV0::CompiledV0(compiled_tx),
                 crank_reward: None,
                 free_tasks: 1,

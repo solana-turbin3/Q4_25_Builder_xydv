@@ -138,7 +138,7 @@ impl<'info> Subscribe<'info> {
             },
         );
 
-        transfer_checked(ctx, amount, self.mint.decimals)
+        transfer_checked(ctx, 10 * amount, self.mint.decimals)
     }
 
     pub fn schedule(&mut self, task_id: u16) -> Result<()> {
@@ -187,7 +187,7 @@ impl<'info> Subscribe<'info> {
                 trigger: TriggerV0::Now,
                 transaction: TransactionSourceV0::CompiledV0(compiled_tx),
                 crank_reward: None,
-                free_tasks: 1, // this is for recursion, this task will queue one more task
+                free_tasks: 15, // this is for recursion, this task will queue one more task
                 description: "payment for subscription".to_string(),
             },
         )
