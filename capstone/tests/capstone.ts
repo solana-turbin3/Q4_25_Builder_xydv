@@ -193,6 +193,8 @@ describe("capstone", () => {
         false
       )[0];
 
+      console.log(nextTask);
+
       await program.methods
         .subscribe()
         .accountsPartial({
@@ -208,4 +210,34 @@ describe("capstone", () => {
         .rpc();
     });
   });
+
+  // describe("cancel subscription", () => {
+  //   it("user can cancel a subscription", async () => {
+  //     const taskQueueAcc = await tuktukProgram.account.taskQueueV0.fetch(
+  //       taskQueue
+  //     );
+
+  //     const nextTask = nextAvailableTaskIds(
+  //       taskQueueAcc.taskBitmap,
+  //       1,
+  //       false
+  //     )[0];
+
+  //     console.log(`next task id? ${nextTask}`);
+
+  //     //   await program.methods
+  //     //     .subscribe()
+  //     //     .accountsPartial({
+  //     //       subscriber: subscriber.publicKey,
+  //     //       subscriptionPlan: subscriptionPlanPda,
+  //     //       mint: USDC_MINT,
+  //     //       task: taskKey(taskQueue, nextTask)[0],
+  //     //       globalState: globalStatePda,
+  //     //       taskQueue,
+  //     //       tokenProgram: TOKEN_PROGRAM_ID,
+  //     //     })
+  //     //     .signers([subscriber])
+  //     //     .rpc();
+  //   });
+  // });
 });

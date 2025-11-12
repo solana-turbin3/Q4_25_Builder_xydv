@@ -1,4 +1,10 @@
-use anchor_lang::{prelude::*, solana_program::instruction::Instruction, InstructionData};
+use anchor_lang::{
+    prelude::*,
+    solana_program::{
+        instruction::Instruction, sysvar::instructions::ID as INSTRUCTIONS_SYSVAR_ID,
+    },
+    InstructionData,
+};
 
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -7,7 +13,10 @@ use anchor_spl::{
 use tuktuk_program::{
     compile_transaction,
     tuktuk::{
-        cpi::{accounts::QueueTaskV0, queue_task_v0},
+        cpi::{
+            accounts::{DequeueTaskV0, QueueTaskV0},
+            dequeue_task_v0, queue_task_v0,
+        },
         program::Tuktuk,
     },
     types::QueueTaskArgsV0,
@@ -152,6 +161,7 @@ impl<'info> Subscribe<'info> {
                 merchant_ata: self.subscription_plan.merchant_ata.key(),
                 mint: self.mint.key(),
                 subscriber_vault: self.subscriber_vault.key(),
+                instructions: INSTRUCTIONS_SYSVAR_ID.key(),
                 associated_token_program: self.associated_token_program.key(),
                 token_program: self.token_program.key(),
                 system_program: self.system_program.key(),

@@ -1,4 +1,7 @@
-use anchor_lang::{prelude::*, solana_program::instruction::Instruction, InstructionData};
+use anchor_lang::{
+    prelude::*, solana_program::instruction::Instruction,
+    solana_program::sysvar::instructions::ID as INSTRUCTIONS_SYSVAR_ID, InstructionData,
+};
 use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
@@ -54,6 +57,10 @@ pub struct ChargeUserRecurring<'info> {
     pub mint: InterfaceAccount<'info, Mint>,
 
     // programs
+    #[account(address = INSTRUCTIONS_SYSVAR_ID)]
+    /// CHECK: InstructionsSysvar account
+    pub instructions: UncheckedAccount<'info>,
+
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
@@ -144,6 +151,7 @@ impl<'info> ChargeUserRecurring<'info> {
                 subscriber_vault: self.subscriber_vault.key(),
                 merchant_ata: self.merchant_ata.key(),
                 mint: self.mint.key(),
+                instructions: self.instructions.key(),
                 associated_token_program: self.associated_token_program.key(),
                 token_program: self.token_program.key(),
                 system_program: self.system_program.key(),
