@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use anchor_lang::{
     prelude::*,
     solana_program::hash::hash,

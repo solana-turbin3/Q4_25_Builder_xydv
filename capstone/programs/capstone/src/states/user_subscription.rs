@@ -16,7 +16,7 @@ pub struct UserSubscription {
     pub status: Status,
     pub failure_count: u8,
     pub last_exec_ts: i64,
-    pub transaction_id: u16,
+    pub next_task_id: u16,
     pub subscriber_vault_bump: u8,
     pub bump: u8,
 }

@@ -13,10 +13,7 @@ use anchor_spl::{
 use tuktuk_program::{
     compile_transaction,
     tuktuk::{
-        cpi::{
-            accounts::{DequeueTaskV0, QueueTaskV0},
-            dequeue_task_v0, queue_task_v0,
-        },
+        cpi::{accounts::QueueTaskV0, queue_task_v0},
         program::Tuktuk,
     },
     types::QueueTaskArgsV0,
@@ -117,13 +114,13 @@ impl<'info> Subscribe<'info> {
             subscription: self.subscription_plan.key(),
             status: Status::Active,
             failure_count: 0,
-            transaction_id: 0,
+            next_task_id: 0,
             last_exec_ts: Clock::get()?.unix_timestamp,
             subscriber_vault_bump: bumps.subscriber_vault,
             bump: bumps.user_subscription,
         });
 
-        self.schedule(self.user_subscription.transaction_id)?;
+        self.schedule(self.user_subscription.next_task_id)?;
 
         // emit events so that it can be used as trigger for merchant backend
         emit!(SubscribeEvent {

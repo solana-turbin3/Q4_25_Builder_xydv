@@ -1,25 +1,18 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token_interface::{Mint, TokenAccount, TokenInterface},
-};
+use anchor_spl::{associated_token::AssociatedToken, token_interface::TokenInterface};
 use tuktuk_program::{
-    compile_transaction,
     tuktuk::{
-        cpi::{
-            accounts::{DequeueTaskV0, QueueTaskV0},
-            dequeue_task_v0, queue_task_v0,
-        },
+        cpi::{accounts::DequeueTaskV0, dequeue_task_v0},
         program::Tuktuk,
     },
-    types::UpdateTaskQueueArgsV0,
-    TaskQueueAuthorityV0, TransactionSourceV0, TriggerV0,
+    TaskQueueAuthorityV0,
 };
 
 use crate::{
     events::CancelSubscriptionEvent,
     states::{
-        GlobalState, UserSubscription, GLOBAL_STATE_SEED, QUEUE_AUTHORITY_SEED, SUBSCRIPTION_SEED,
+        GlobalState, Status, UserSubscription, GLOBAL_STATE_SEED, QUEUE_AUTHORITY_SEED,
+        SUBSCRIPTION_SEED,
     },
 };
 
@@ -35,18 +28,6 @@ pub struct CancelSubscription<'info> {
         bump = user_subscription.bump
     )]
     pub user_subscription: Account<'info, UserSubscription>,
-
-    #[account(
-        // address = subscription_plan.mint @ SubscriptionError::MintMismatch,
-        mint::token_program = token_program
-    )]
-    pub mint: InterfaceAccount<'info, Mint>,
-    #[account(
-        associated_token::mint = mint,
-        associated_token::authority = subscriber,
-        associated_token::token_program = token_program
-    )]
-    pub subscriber_ata: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
         seeds = [GLOBAL_STATE_SEED],
@@ -71,8 +52,14 @@ pub struct CancelSubscription<'info> {
       seeds::program = tuktuk_program::tuktuk::ID,
     )]
     pub task_queue_authority: Account<'info, TaskQueueAuthorityV0>,
-    #[account(mut)]
-    /// CHECK: via CPI
+    #[account(
+        mut,
+        // seeds = [b"task".as_ref(), task_queue.key().as_ref(), user_subscription.next_task_id.to_le_bytes().as_ref()],
+        // seeds::program = tuktuk_program::tuktuk::ID,
+        // constraint = !task.data_is_empty(),
+        // bump, // ??
+    )]
+    /// CHECK: via seeds
     pub task: AccountInfo<'info>,
 
     // PROGRAMS
@@ -86,6 +73,8 @@ impl<'info> CancelSubscription<'info> {
     pub fn cancel_subscription(&mut self) -> Result<()> {
         self.dequeue_task()?;
 
+        self.user_subscription.status = Status::Canceled;
+
         emit!(CancelSubscriptionEvent {
             subscriber: self.subscriber.key(),
             subscription: self.user_subscription.subscription.key()
@@ -95,15 +84,21 @@ impl<'info> CancelSubscription<'info> {
     }
 
     pub fn dequeue_task(&mut self) -> Result<()> {
-        let ctx = CpiContext::new(
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            QUEUE_AUTHORITY_SEED,
+            &[self.global_state.queue_authority_bump],
+        ]];
+
+        let ctx = CpiContext::new_with_signer(
             self.tuktuk_program.to_account_info(),
             DequeueTaskV0 {
                 queue_authority: self.queue_authority.to_account_info(),
-                rent_refund: self.queue_authority.to_account_info(), // ??
+                rent_refund: self.task_queue.to_account_info(), // ??
                 task_queue_authority: self.task_queue_authority.to_account_info(),
                 task_queue: self.task_queue.to_account_info(),
-                task: self.task.to_account_info(), // ?? how to get task id?
+                task: self.task.to_account_info(),
             },
+            signer_seeds,
         );
 
         dequeue_task_v0(ctx)

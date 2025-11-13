@@ -1,6 +1,12 @@
 use anchor_lang::{
-    prelude::*, solana_program::instruction::Instruction,
-    solana_program::sysvar::instructions::ID as INSTRUCTIONS_SYSVAR_ID, InstructionData,
+    prelude::*,
+    solana_program::{
+        instruction::Instruction,
+        sysvar::instructions::{
+            load_current_index_checked, load_instruction_at_checked, ID as INSTRUCTIONS_SYSVAR_ID,
+        },
+    },
+    InstructionData,
 };
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -14,7 +20,8 @@ use crate::{
     error::SubscriptionError,
     events::ChargeEvent,
     states::{
-        Status, SubscriptionPlan, UserSubscription, SUBSCRIBER_VAULT_SEED, SUBSCRIPTION_SEED,
+        Status, SubscriptionPlan, UserSubscription, QUEUE_AUTHORITY_SEED, SUBSCRIBER_VAULT_SEED,
+        SUBSCRIPTION_SEED,
     },
 };
 
@@ -68,6 +75,8 @@ pub struct ChargeUserRecurring<'info> {
 
 impl<'info> ChargeUserRecurring<'info> {
     pub fn charge_user_recurring(&mut self) -> Result<RunTaskReturnV0> {
+        self.set_next_task_id()?; // is this right place?
+
         if self.user_subscription.failure_count >= self.subscription_plan.max_failure_count {
             msg!("max failure count reached, cancelling subscription");
 
@@ -138,6 +147,16 @@ impl<'info> ChargeUserRecurring<'info> {
         );
 
         transfer_checked(ctx, self.subscription_plan.amount, self.mint.decimals)
+    }
+
+    // set next task id using introspection, next id is the first element from free tasks
+    pub fn set_next_task_id(&mut self) -> Result<()> {
+        let index = load_current_index_checked(&self.instructions.to_account_info())? as usize;
+        let instruction = load_instruction_at_checked(index, &self.instructions.to_account_info())?;
+        let next_task_id = u16::from_le_bytes(instruction.data[12..14].try_into().unwrap());
+
+        self.user_subscription.next_task_id = next_task_id;
+        Ok(())
     }
 
     pub fn schedule_next_task(&mut self, timestamp: i64) -> Result<RunTaskReturnV0> {

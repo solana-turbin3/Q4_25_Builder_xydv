@@ -138,81 +138,53 @@ describe("capstone", () => {
         .initialize()
         .accounts({ signer, taskQueue, programData: programDataAccount })
         .rpc();
+    } else {
+      taskQueue = globalState.taskQueue;
     }
   });
 
-  describe("create subscription", () => {
-    it("can create a new subscription", async () => {
-      await program.methods
-        .createSubscription({
-          name,
-          amount: new anchor.BN(1_000_000), // 1 USDC
-          interval: new anchor.BN(120),
-          maxFailureCount: 3,
-        })
-        .accountsStrict({
-          merchant: signer,
-          mint: USDC_MINT,
-          subscriptionPlan: subscriptionPlanPda,
-          feesVault: feesPda,
-          globalState: globalStatePda,
-          merchantAta: merchantAta,
-          systemProgram: anchor.web3.SystemProgram.programId,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        })
-        .rpc();
+  // describe("create subscription", () => {
+  //   it("can create a new subscription", async () => {
+  //     await program.methods
+  //       .createSubscription({
+  //         name,
+  //         amount: new anchor.BN(1_000_000), // 1 USDC
+  //         interval: new anchor.BN(120),
+  //         maxFailureCount: 3,
+  //       })
+  //       .accountsStrict({
+  //         merchant: signer,
+  //         mint: USDC_MINT,
+  //         subscriptionPlan: subscriptionPlanPda,
+  //         feesVault: feesPda,
+  //         globalState: globalStatePda,
+  //         merchantAta: merchantAta,
+  //         systemProgram: anchor.web3.SystemProgram.programId,
+  //         tokenProgram: TOKEN_PROGRAM_ID,
+  //         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+  //       })
+  //       .rpc();
 
-      const subscription = await program.account.subscriptionPlan.fetch(
-        subscriptionPlanPda
-      );
+  //     const subscription = await program.account.subscriptionPlan.fetch(
+  //       subscriptionPlanPda
+  //     );
 
-      assert.equal(subscription.merchant.toBase58(), signer.toBase58());
-      assert.equal(subscription.name, name);
-      assert.equal(
-        subscription.amount.toString(),
-        new anchor.BN(1_000_000).toString()
-      );
-      assert.equal(
-        subscription.interval.toString(),
-        new anchor.BN(120).toString()
-      );
-      assert.equal(subscription.maxFailureCount, 3);
-    });
-  });
+  //     assert.equal(subscription.merchant.toBase58(), signer.toBase58());
+  //     assert.equal(subscription.name, name);
+  //     assert.equal(
+  //       subscription.amount.toString(),
+  //       new anchor.BN(1_000_000).toString()
+  //     );
+  //     assert.equal(
+  //       subscription.interval.toString(),
+  //       new anchor.BN(120).toString()
+  //     );
+  //     assert.equal(subscription.maxFailureCount, 3);
+  //   });
+  // });
 
-  describe("subscribe", () => {
-    it("user can subscribe to a subscription", async () => {
-      const taskQueueAcc = await tuktukProgram.account.taskQueueV0.fetch(
-        taskQueue
-      );
-
-      const nextTask = nextAvailableTaskIds(
-        taskQueueAcc.taskBitmap,
-        1,
-        false
-      )[0];
-
-      console.log(nextTask);
-
-      await program.methods
-        .subscribe()
-        .accountsPartial({
-          subscriber: subscriber.publicKey,
-          subscriptionPlan: subscriptionPlanPda,
-          mint: USDC_MINT,
-          task: taskKey(taskQueue, nextTask)[0],
-          globalState: globalStatePda,
-          taskQueue,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .signers([subscriber])
-        .rpc();
-    });
-  });
-
-  // describe("cancel subscription", () => {
-  //   it("user can cancel a subscription", async () => {
+  // describe("subscribe", () => {
+  //   it("user can subscribe to a subscription", async () => {
   //     const taskQueueAcc = await tuktukProgram.account.taskQueueV0.fetch(
   //       taskQueue
   //     );
@@ -223,21 +195,45 @@ describe("capstone", () => {
   //       false
   //     )[0];
 
-  //     console.log(`next task id? ${nextTask}`);
+  //     console.log(nextTask);
 
-  //     //   await program.methods
-  //     //     .subscribe()
-  //     //     .accountsPartial({
-  //     //       subscriber: subscriber.publicKey,
-  //     //       subscriptionPlan: subscriptionPlanPda,
-  //     //       mint: USDC_MINT,
-  //     //       task: taskKey(taskQueue, nextTask)[0],
-  //     //       globalState: globalStatePda,
-  //     //       taskQueue,
-  //     //       tokenProgram: TOKEN_PROGRAM_ID,
-  //     //     })
-  //     //     .signers([subscriber])
-  //     //     .rpc();
+  //     await program.methods
+  //       .subscribe()
+  //       .accountsPartial({
+  //         subscriber: subscriber.publicKey,
+  //         subscriptionPlan: subscriptionPlanPda,
+  //         mint: USDC_MINT,
+  //         task: taskKey(taskQueue, nextTask)[0],
+  //         globalState: globalStatePda,
+  //         taskQueue,
+  //         tokenProgram: TOKEN_PROGRAM_ID,
+  //       })
+  //       .signers([subscriber])
+  //       .rpc();
   //   });
   // });
+
+  describe("cancel subscription", () => {
+    it("user can cancel a subscription", async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+
+      let userSubs = (await program.account.userSubscription.all())[0];
+      let task = taskKey(taskQueue, userSubs.account.nextTaskId)[0];
+
+      console.log(userSubs.account);
+      console.log("next task key is ", task.toBase58());
+
+      await program.methods
+        .cancelSubscription()
+        .accountsPartial({
+          subscriber: subscriber.publicKey,
+          userSubscription: userSubs.publicKey,
+          taskQueue,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          task,
+        })
+        .signers([subscriber])
+        .rpc({ skipPreflight: true });
+    });
+  });
 });

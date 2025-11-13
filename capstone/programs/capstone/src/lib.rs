@@ -12,11 +12,6 @@ use instructions::*;
 
 #[program]
 pub mod capstone {
-
-    use anchor_lang::solana_program::sysvar::instructions::{
-        load_current_index_checked, load_instruction_at_checked,
-    };
-
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
@@ -36,14 +31,6 @@ pub mod capstone {
     }
 
     pub fn charge_user_recurring(ctx: Context<ChargeUserRecurring>) -> Result<RunTaskReturnV0> {
-        let index =
-            load_current_index_checked(&ctx.accounts.instructions.to_account_info())? as usize;
-        let instruction =
-            load_instruction_at_checked(index, &ctx.accounts.instructions.to_account_info())?;
-
-        ctx.accounts.user_subscription.transaction_id =
-            u16::from_le_bytes(instruction.data[12..14].try_into().unwrap());
-
         ctx.accounts.charge_user_recurring()
     }
 
