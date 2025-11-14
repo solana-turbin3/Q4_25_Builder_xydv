@@ -195,8 +195,6 @@ describe("capstone", () => {
         false
       )[0];
 
-      console.log(nextTask);
-
       await program.methods
         .subscribe()
         .accountsPartial({
@@ -213,27 +211,37 @@ describe("capstone", () => {
     });
   });
 
-  // describe("cancel subscription", () => {
-  //   it("user can cancel a subscription", async () => {
-  //     await new Promise((resolve) => setTimeout(resolve, 10000));
+  describe("cancel subscription", () => {
+    it("user can cancel a subscription", async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10000));
 
-  //     let userSubs = (await program.account.userSubscription.all())[0];
-  //     let task = taskKey(taskQueue, userSubs.account.nextTaskId)[0];
+      let userSubs = (await program.account.userSubscription.all())[0];
+      let task = taskKey(taskQueue, userSubs.account.nextTaskId)[0];
 
-  //     console.log(userSubs.account);
-  //     console.log("next task key is ", task.toBase58());
+      await program.methods
+        .cancelSubscription()
+        .accountsPartial({
+          subscriber: subscriber.publicKey,
+          userSubscription: userSubs.publicKey,
+          taskQueue,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          task,
+        })
+        .signers([subscriber])
+        .rpc();
+    });
+  });
 
-  //     await program.methods
-  //       .cancelSubscription()
-  //       .accountsPartial({
-  //         subscriber: subscriber.publicKey,
-  //         userSubscription: userSubs.publicKey,
-  //         taskQueue,
-  //         tokenProgram: TOKEN_PROGRAM_ID,
-  //         task,
-  //       })
-  //       .signers([subscriber])
-  //       .rpc({ skipPreflight: true });
-  //   });
-  // });
+  describe("close vault", () => {
+    it("user can close his vault", async () => {
+      await program.methods
+        .closeVault()
+        .accounts({
+          subscriber: subscriber.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([subscriber])
+        .rpc({ skipPreflight: true });
+    });
+  });
 });

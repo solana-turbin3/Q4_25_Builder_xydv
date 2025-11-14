@@ -12,3 +12,6 @@ pub use charge_user_recurring::*;
 
 pub mod cancel_subscription;
 pub use cancel_subscription::*;
+
+pub mod close_vault;
+pub use close_vault::*;

@@ -37,4 +37,8 @@ pub mod capstone {
     pub fn cancel_subscription(ctx: Context<CancelSubscription>) -> Result<()> {
         ctx.accounts.cancel_subscription()
     }
+
+    pub fn close_vault(ctx: Context<CloseVault>) -> Result<()> {
+        ctx.accounts.close_vault(&ctx.bumps)
+    }
 }
