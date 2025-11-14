@@ -3,8 +3,6 @@ import { Program } from "@coral-xyz/anchor";
 import { Capstone } from "../target/types/capstone";
 import * as crypto from "crypto";
 import {
-  PROGRAM_ID as TUKTUK_PROGRAM_ID,
-  createTaskQueue,
   init as initTuktuk,
   nextAvailableTaskIds,
   taskKey,
@@ -15,11 +13,13 @@ import {
 import { Tuktuk } from "@helium/tuktuk-idls/lib/types/tuktuk";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddress,
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
+  getAccount,
+  createAssociatedTokenAccountInstruction,
+  createTransferCheckedInstruction,
 } from "@solana/spl-token";
-import { assert } from "chai";
+import { assert, expect } from "chai";
 
 function hashString(input: string): Buffer {
   return crypto.createHash("sha256").update(input, "utf8").digest();
@@ -32,22 +32,33 @@ describe("capstone", () => {
   const program = anchor.workspace.capstone as Program<Capstone>;
 
   const signer = provider.wallet.publicKey;
-  // so that we can fund him usdc
-  const subscriber = anchor.web3.Keypair.fromSecretKey(
-    Uint8Array.from([
-      116, 77, 230, 125, 125, 33, 29, 71, 234, 94, 90, 190, 183, 3, 108, 4, 89,
-      35, 161, 71, 61, 161, 94, 130, 94, 4, 55, 203, 13, 111, 38, 201, 13, 139,
-      57, 224, 89, 146, 109, 147, 204, 16, 58, 221, 153, 15, 71, 18, 143, 217,
-      224, 86, 170, 185, 205, 196, 243, 135, 124, 115, 206, 56, 0, 196,
+  const signerKp = anchor.web3.Keypair.fromSecretKey(
+    new Uint8Array([
+      100, 48, 60, 71, 86, 179, 14, 216, 64, 203, 186, 94, 205, 107, 73, 21, 42,
+      136, 132, 201, 221, 76, 247, 175, 232, 102, 85, 60, 114, 27, 96, 243, 138,
+      80, 193, 221, 63, 123, 195, 74, 131, 100, 205, 136, 241, 46, 231, 250, 96,
+      245, 22, 151, 138, 74, 123, 28, 60, 111, 163, 102, 228, 101, 93, 191,
     ])
   );
 
+  const subscriber1 = anchor.web3.Keypair.generate();
+  const subscriber2 = anchor.web3.Keypair.generate();
+
   const taskQueueName = `test-${Math.random().toString(36).substring(2, 15)}`;
 
-  console.log(taskQueueName);
+  console.log("Task Queue Name:", taskQueueName);
 
   let taskQueue: anchor.web3.PublicKey;
   let tuktukProgram: Program<Tuktuk>;
+  const taskAmount = new anchor.BN(1_000_000);
+
+  const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new anchor.web3.PublicKey(
+    "BPFLoaderUpgradeab1e11111111111111111111111"
+  );
+
+  const USDC_MINT = new anchor.web3.PublicKey(
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  );
 
   const [globalStatePda, globalStateBump] =
     anchor.web3.PublicKey.findProgramAddressSync(
@@ -68,21 +79,12 @@ describe("capstone", () => {
 
   const tuktukConfig = tuktukConfigKey()[0];
 
-  const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new anchor.web3.PublicKey(
-    "BPFLoaderUpgradeab1e11111111111111111111111"
-  );
-
-  const USDC_MINT = new anchor.web3.PublicKey(
-    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-  );
-
   const programDataAccount = anchor.web3.PublicKey.findProgramAddressSync(
     [program.programId.toBuffer()],
     BPF_LOADER_UPGRADEABLE_PROGRAM_ID
   )[0];
 
   const name = "turbin3 subscription";
-
   const [subscriptionPlanPda, subscriptionPlanBump] =
     anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("plan"), signer.toBuffer(), hashString(name)],
@@ -91,8 +93,81 @@ describe("capstone", () => {
 
   const merchantAta = getAssociatedTokenAddressSync(USDC_MINT, signer);
 
+  const subscriber1Ata = getAssociatedTokenAddressSync(
+    USDC_MINT,
+    subscriber1.publicKey
+  );
+  const subscriber2Ata = getAssociatedTokenAddressSync(
+    USDC_MINT,
+    subscriber2.publicKey
+  );
+
+  const [subscriber1SubscriptionPda] =
+    anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("subscription"),
+        subscriber1.publicKey.toBuffer(),
+        subscriptionPlanPda.toBuffer(),
+      ],
+      program.programId
+    );
+
+  const [subscriber1VaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), subscriber1.publicKey.toBuffer()],
+    program.programId
+  );
+
   before(async () => {
     tuktukProgram = await initTuktuk(provider);
+
+    await provider.connection.requestAirdrop(
+      subscriber1.publicKey,
+      10 * anchor.web3.LAMPORTS_PER_SOL
+    );
+
+    await provider.connection.requestAirdrop(
+      subscriber2.publicKey,
+      10 * anchor.web3.LAMPORTS_PER_SOL
+    );
+
+    await anchor.web3.sendAndConfirmTransaction(
+      provider.connection,
+      new anchor.web3.Transaction().add(
+        createAssociatedTokenAccountInstruction(
+          signer,
+          subscriber1Ata,
+          subscriber1.publicKey,
+          USDC_MINT,
+          TOKEN_PROGRAM_ID,
+          ASSOCIATED_TOKEN_PROGRAM_ID
+        ),
+        createTransferCheckedInstruction(
+          merchantAta,
+          USDC_MINT,
+          subscriber1Ata,
+          signer,
+          100000000,
+          6
+        ),
+        createAssociatedTokenAccountInstruction(
+          signer,
+          subscriber2Ata,
+          subscriber2.publicKey,
+          USDC_MINT,
+          TOKEN_PROGRAM_ID,
+          ASSOCIATED_TOKEN_PROGRAM_ID
+        ),
+        createTransferCheckedInstruction(
+          merchantAta,
+          USDC_MINT,
+          subscriber2Ata,
+          signer,
+          100000000,
+          6
+        )
+      ),
+      [signerKp]
+    );
 
     const globalState = await program.account.globalState.fetchNullable(
       globalStatePda
@@ -144,11 +219,11 @@ describe("capstone", () => {
   });
 
   describe("create subscription", () => {
-    it("can create a new subscription", async () => {
+    it("merchant can create a new subscription with correct details", async () => {
       await program.methods
         .createSubscription({
           name,
-          amount: new anchor.BN(1_000_000), // 1 USDC
+          amount: taskAmount,
           interval: new anchor.BN(120),
           maxFailureCount: 1,
         })
@@ -181,6 +256,74 @@ describe("capstone", () => {
       );
       assert.equal(subscription.maxFailureCount, 1);
     });
+
+    it("should fail to create subscription with zero amount", async () => {
+      const newPlanName = "zero amount test";
+
+      const [testPlanPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("plan"), signer.toBuffer(), hashString(newPlanName)],
+        program.programId
+      );
+
+      try {
+        await program.methods
+          .createSubscription({
+            name: newPlanName,
+            amount: new anchor.BN(0),
+            interval: new anchor.BN(100),
+            maxFailureCount: 1,
+          })
+          .accountsStrict({
+            merchant: signer,
+            mint: USDC_MINT,
+            subscriptionPlan: testPlanPda,
+            feesVault: feesPda,
+            globalState: globalStatePda,
+            merchantAta: merchantAta,
+            systemProgram: anchor.web3.SystemProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          })
+          .rpc();
+        assert.fail("Transaction should have failed with InvalidAmount");
+      } catch (err) {
+        expect(err.error.errorCode.code).to.include("InvalidAmount");
+      }
+    });
+
+    it("should fail to create subscription with no name", async () => {
+      const newPlanName = "";
+
+      const [testPlanPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("plan"), signer.toBuffer(), hashString(newPlanName)],
+        program.programId
+      );
+
+      try {
+        await program.methods
+          .createSubscription({
+            name: newPlanName,
+            amount: taskAmount,
+            interval: new anchor.BN(100),
+            maxFailureCount: 1,
+          })
+          .accountsStrict({
+            merchant: signer,
+            mint: USDC_MINT,
+            subscriptionPlan: testPlanPda,
+            feesVault: feesPda,
+            globalState: globalStatePda,
+            merchantAta: merchantAta,
+            systemProgram: anchor.web3.SystemProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          })
+          .rpc();
+        assert.fail("Transaction should have failed with InvalidName");
+      } catch (err) {
+        expect(err.error.errorCode.code).to.include("InvalidName");
+      }
+    });
   });
 
   describe("subscribe", () => {
@@ -198,7 +341,8 @@ describe("capstone", () => {
       await program.methods
         .subscribe()
         .accountsPartial({
-          subscriber: subscriber.publicKey,
+          subscriber: subscriber1.publicKey,
+          subscriberAta: subscriber1Ata,
           subscriptionPlan: subscriptionPlanPda,
           mint: USDC_MINT,
           task: taskKey(taskQueue, nextTask)[0],
@@ -206,29 +350,81 @@ describe("capstone", () => {
           taskQueue,
           tokenProgram: TOKEN_PROGRAM_ID,
         })
-        .signers([subscriber])
+        .signers([subscriber1])
         .rpc();
+
+      const userSubs = await program.account.userSubscription.fetch(
+        subscriber1SubscriptionPda
+      );
+      assert.isTrue(
+        userSubs.status.active !== undefined,
+        "Subscription status should be Active"
+      );
+    });
+
+    it("should fail to subscribe to the same plan twice", async () => {
+      const taskQueueAcc = await tuktukProgram.account.taskQueueV0.fetch(
+        taskQueue
+      );
+      const nextTask = nextAvailableTaskIds(
+        taskQueueAcc.taskBitmap,
+        1,
+        false
+      )[0];
+
+      try {
+        await program.methods
+          .subscribe()
+          .accountsPartial({
+            subscriber: subscriber1.publicKey,
+            subscriberAta: subscriber1Ata,
+            subscriptionPlan: subscriptionPlanPda,
+            mint: USDC_MINT,
+            task: taskKey(taskQueue, nextTask)[0],
+            globalState: globalStatePda,
+            taskQueue,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          })
+          .signers([subscriber1])
+          .rpc();
+        assert.fail(
+          "Subscription should have failed because the PDA is already initialized"
+        );
+      } catch (err) {
+        expect(err.transactionMessage).to.include("already in use");
+      }
     });
   });
 
   describe("cancel subscription", () => {
-    it("user can cancel a subscription", async () => {
-      await new Promise((resolve) => setTimeout(resolve, 10000));
+    it("subscriber1 can cancel a subscription", async () => {
+      console.log("\nwaiting for tuktuk to charge for one cycle...\n");
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      let userSubs = (await program.account.userSubscription.all())[0];
-      let task = taskKey(taskQueue, userSubs.account.nextTaskId)[0];
+      const userSubs = await program.account.userSubscription.fetch(
+        subscriber1SubscriptionPda
+      );
+
+      const task = taskKey(taskQueue, userSubs.nextTaskId)[0];
 
       await program.methods
         .cancelSubscription()
         .accountsPartial({
-          subscriber: subscriber.publicKey,
-          userSubscription: userSubs.publicKey,
+          subscriber: subscriber1.publicKey,
+          userSubscription: subscriber1SubscriptionPda,
           taskQueue,
           tokenProgram: TOKEN_PROGRAM_ID,
           task,
         })
-        .signers([subscriber])
+        .signers([subscriber1])
         .rpc();
+
+      const cancelledSubscription =
+        await program.account.userSubscription.fetchNullable(
+          subscriber1SubscriptionPda
+        );
+
+      expect(cancelledSubscription).to.be.null;
     });
   });
 
@@ -237,11 +433,39 @@ describe("capstone", () => {
       await program.methods
         .closeVault()
         .accounts({
-          subscriber: subscriber.publicKey,
+          subscriber: subscriber1.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
         })
-        .signers([subscriber])
+        .signers([subscriber1])
         .rpc({ skipPreflight: true });
     });
+  });
+
+  it("subscriber2 cannot close subscriber1's vault (Wrong Signer)", async () => {
+    const [subscriber1VaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("vault"), subscriber1.publicKey.toBuffer()],
+      program.programId
+    );
+
+    try {
+      await program.methods
+        .closeVault()
+        .accountsStrict({
+          subscriber: subscriber2.publicKey,
+          mint: USDC_MINT,
+          subscriberAta: subscriber2Ata,
+          subscriberVault: subscriber1VaultPda,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([subscriber2])
+        .rpc();
+      assert.fail(
+        "Transaction should have failed due to constraint violation (wrong signer)"
+      );
+    } catch (err) {
+      expect(err.error.errorCode.code).to.include("AccountNotInitialized");
+    }
   });
 });
