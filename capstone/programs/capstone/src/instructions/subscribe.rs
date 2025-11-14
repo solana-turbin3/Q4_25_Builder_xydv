@@ -132,8 +132,18 @@ impl<'info> Subscribe<'info> {
         Ok(())
     }
 
-    // transfer one cycle plan amount on subscribe (todo: if vault already has some usdc, dont transfer than)
     pub fn transfer(&mut self, amount: u64) -> Result<()> {
+        if self.subscriber_vault.amount > amount {
+            return Ok(());
+        }
+
+        msg!(
+            "no USDC in vault, adding {} USDC to vault for current plan cycle",
+            amount
+                .checked_div((10 as u64).checked_pow(self.mint.decimals as u32).unwrap())
+                .unwrap()
+        );
+
         let ctx = CpiContext::new(
             self.token_program.to_account_info(),
             TransferChecked {

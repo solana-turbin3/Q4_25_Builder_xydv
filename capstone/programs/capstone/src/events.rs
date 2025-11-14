@@ -21,3 +21,9 @@ pub struct CancelSubscriptionEvent {
     pub subscriber: Pubkey,
     pub subscription: Pubkey,
 }
+
+#[event]
+pub struct SubscriptionFailedEvent {
+    pub subscriber: Pubkey,
+    pub subscription: Pubkey,
+}

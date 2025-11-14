@@ -18,10 +18,9 @@ use tuktuk_program::{
 
 use crate::{
     error::SubscriptionError,
-    events::ChargeEvent,
+    events::{ChargeEvent, SubscriptionFailedEvent},
     states::{
-        Status, SubscriptionPlan, UserSubscription, QUEUE_AUTHORITY_SEED, SUBSCRIBER_VAULT_SEED,
-        SUBSCRIPTION_SEED,
+        Status, SubscriptionPlan, UserSubscription, SUBSCRIBER_VAULT_SEED, SUBSCRIPTION_SEED,
     },
 };
 
@@ -77,44 +76,40 @@ impl<'info> ChargeUserRecurring<'info> {
     pub fn charge_user_recurring(&mut self) -> Result<RunTaskReturnV0> {
         self.set_next_task_id()?; // is this right place?
 
-        if self.user_subscription.failure_count >= self.subscription_plan.max_failure_count {
-            msg!("max failure count reached, cancelling subscription");
-
-            self.user_subscription.status = Status::Failed;
-
-            // emit!();
-            // close_cron!()
-        }
         // improvements: check cpi failure
         if self.subscriber_vault.amount < self.subscription_plan.amount {
-            msg!("not enough amount of tokens");
+            msg!("not enough amount of tokens in vault");
 
             match self.user_subscription.failure_count.checked_add(1) {
                 Some(x) => self.user_subscription.failure_count = x,
                 None => return err!(SubscriptionError::ArithmeticError),
             };
 
-            let one_day_later = self
-                .user_subscription
-                .last_exec_ts
-                .checked_add(24 * 60 * 60)
-                .unwrap();
+            if self.user_subscription.failure_count > self.subscription_plan.max_failure_count {
+                msg!("max failure count reached, changing status to failed");
+
+                self.user_subscription.status = Status::Failed;
+
+                emit!(SubscriptionFailedEvent {
+                    subscriber: self.subscriber.key(),
+                    subscription: self.subscription_plan.key()
+                });
+
+                // return no task so that recursion ends
+                return Ok(RunTaskReturnV0 {
+                    tasks: vec![],
+                    accounts: vec![],
+                });
+            }
+
+            // improvement: dont hard-code
+            let one_day_later = self.user_subscription.last_exec_ts.checked_add(60).unwrap();
 
             self.schedule_next_task(one_day_later)
         } else {
             self.transfer_tokens()?;
 
-            emit!(ChargeEvent {
-                subscriber: self.subscriber.key(),
-                subscription: self.subscription_plan.key(),
-                amount: self.subscription_plan.amount
-            });
-
-            // is this required?
-            // match self.user_subscription.transaction_id.checked_add(1) {
-            //     Some(x) => self.user_subscription.transaction_id = x,
-            //     None => return err!(SubscriptionError::ArithmeticError),
-            // }
+            self.user_subscription.failure_count = 0;
 
             let next_exec_ts = self
                 .user_subscription
@@ -123,6 +118,12 @@ impl<'info> ChargeUserRecurring<'info> {
                 .unwrap();
 
             self.user_subscription.last_exec_ts = next_exec_ts;
+
+            emit!(ChargeEvent {
+                subscriber: self.subscriber.key(),
+                subscription: self.subscription_plan.key(),
+                amount: self.subscription_plan.amount
+            });
 
             self.schedule_next_task(next_exec_ts)
         }
