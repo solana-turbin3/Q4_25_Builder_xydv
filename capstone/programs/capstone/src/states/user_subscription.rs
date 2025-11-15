@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-#[derive(InitSpace, AnchorDeserialize, AnchorSerialize, Clone)]
+#[derive(InitSpace, AnchorDeserialize, AnchorSerialize, Clone, PartialEq)]
 pub enum Status {
     Active,
     Failed,

@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use tuktuk_program::RunTaskReturnV0;
 
-declare_id!("SubsfvX3BEXk4JpzwFXUAL5H51rZtyooPSTprzjGeTz");
+declare_id!("ZtzPHWinzmfmxDBeoEUy2JDSt3qGp3pv1BuAFc6nrop");
 
 mod error;
 mod events;

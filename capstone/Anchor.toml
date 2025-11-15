@@ -12,8 +12,9 @@ capstone = "SubsfvX3BEXk4JpzwFXUAL5H51rZtyooPSTprzjGeTz"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\""
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/capstone.ts\""
+devnet = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/devnet-demo.ts\""

@@ -71,7 +71,9 @@ pub struct CancelSubscription<'info> {
 
 impl<'info> CancelSubscription<'info> {
     pub fn cancel_subscription(&mut self) -> Result<()> {
-        self.dequeue_task()?;
+        if self.user_subscription.status == Status::Active {
+            self.dequeue_task()?;
+        };
 
         self.user_subscription.status = Status::Canceled;
 
