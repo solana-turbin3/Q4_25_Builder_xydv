@@ -8,6 +8,7 @@ import {
 } from "@helium/tuktuk-sdk";
 import { Tuktuk } from "@helium/tuktuk-idls/lib/types/tuktuk";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { readFileSync } from "fs";
 
 describe("capstone", () => {
   const provider = anchor.AnchorProvider.local(
@@ -21,12 +22,13 @@ describe("capstone", () => {
 
   // so that we can close this after demo
   const subscriber = anchor.web3.Keypair.fromSecretKey(
-    Uint8Array.from([
-      116, 77, 230, 125, 125, 33, 29, 71, 234, 94, 90, 190, 183, 3, 108, 4, 89,
-      35, 161, 71, 61, 161, 94, 130, 94, 4, 55, 203, 13, 111, 38, 201, 13, 139,
-      57, 224, 89, 146, 109, 147, 204, 16, 58, 221, 153, 15, 71, 18, 143, 217,
-      224, 86, 170, 185, 205, 196, 243, 135, 124, 115, 206, 56, 0, 196,
-    ])
+    Uint8Array.from(
+      JSON.parse(
+        readFileSync(
+          "/home/aditya/Code/Q4_25_Builder_xydv/capstone/tests/subscriber.json"
+        ).toString()
+      )
+    )
   );
 
   console.log("subscriber: ", subscriber.publicKey.toBase58());
@@ -57,7 +59,7 @@ describe("capstone", () => {
   describe("cancel subscription", () => {
     it("user can cancel a subscription", async () => {
       let userSubscription = new anchor.web3.PublicKey(
-        "4dKGNSLhnVSZQzDAmupad6MUaqr6jFf7hKERmZ4aXfs5"
+        "9aWCGQRRZZnmcuCa6QikY6mqCuMMFkTFsokVXsdBdcex"
       );
 
       let userSubscriptionAccount =

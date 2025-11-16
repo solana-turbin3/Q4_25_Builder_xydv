@@ -3,14 +3,9 @@ import { Program } from "@coral-xyz/anchor";
 import { Capstone } from "../target/types/capstone";
 import * as crypto from "crypto";
 import {
-  PROGRAM_ID as TUKTUK_PROGRAM_ID,
-  createTaskQueue,
   init as initTuktuk,
   nextAvailableTaskIds,
   taskKey,
-  taskQueueKey,
-  taskQueueNameMappingKey,
-  tuktukConfigKey,
 } from "@helium/tuktuk-sdk";
 import { Tuktuk } from "@helium/tuktuk-idls/lib/types/tuktuk";
 import {
@@ -19,6 +14,7 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { assert } from "chai";
+import { readFileSync } from "fs";
 
 function hashString(input: string): Buffer {
   return crypto.createHash("sha256").update(input, "utf8").digest();
@@ -36,19 +32,21 @@ describe("capstone", () => {
 
   // so that we can close this after demo
   const subscriber = anchor.web3.Keypair.fromSecretKey(
-    Uint8Array.from([
-      116, 77, 230, 125, 125, 33, 29, 71, 234, 94, 90, 190, 183, 3, 108, 4, 89,
-      35, 161, 71, 61, 161, 94, 130, 94, 4, 55, 203, 13, 111, 38, 201, 13, 139,
-      57, 224, 89, 146, 109, 147, 204, 16, 58, 221, 153, 15, 71, 18, 143, 217,
-      224, 86, 170, 185, 205, 196, 243, 135, 124, 115, 206, 56, 0, 196,
-    ])
+    Uint8Array.from(
+      JSON.parse(
+        readFileSync(
+          "/home/aditya/Code/Q4_25_Builder_xydv/capstone/tests/subscriber.json"
+        ).toString()
+      )
+    )
   );
 
-  console.log("subscriber: ", subscriber);
+  console.log("MERCHANT: ", signer.toBase58());
+  console.log("SUBSCRIBER: ", subscriber.publicKey.toBase58());
 
   const taskQueueName = `test-${Math.random().toString(36).substring(2, 15)}`;
 
-  console.log(taskQueueName);
+  console.log("TASK QUEUE NAME: ", taskQueueName);
 
   let taskQueue: anchor.web3.PublicKey;
   let tuktukProgram: Program<Tuktuk>;
@@ -59,33 +57,18 @@ describe("capstone", () => {
       program.programId
     );
 
-  const [queueAuthorityPda, queueAuthorityBump] =
-    anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("queue_authority")],
-      program.programId
-    );
-
   const [feesPda, feesBump] = anchor.web3.PublicKey.findProgramAddressSync(
     [Buffer.from("fees_vault")],
     program.programId
-  );
-
-  const tuktukConfig = tuktukConfigKey()[0];
-
-  const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new anchor.web3.PublicKey(
-    "BPFLoaderUpgradeab1e11111111111111111111111"
   );
 
   const USDC_MINT = new anchor.web3.PublicKey(
     "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" // for devnet
   );
 
-  const programDataAccount = anchor.web3.PublicKey.findProgramAddressSync(
-    [program.programId.toBuffer()],
-    BPF_LOADER_UPGRADEABLE_PROGRAM_ID
-  )[0];
-
-  const name = `turbin3 subscription ${Date.now()}`; // new name for each
+  const name = `turbin3 subscription ${Math.random()
+    .toString(36)
+    .substring(2, 15)}}`; // new name for each
 
   const [subscriptionPlanPda, subscriptionPlanBump] =
     anchor.web3.PublicKey.findProgramAddressSync(
@@ -96,55 +79,17 @@ describe("capstone", () => {
   const merchantAta = getAssociatedTokenAddressSync(USDC_MINT, signer);
 
   before(async () => {
-    tuktukProgram = await initTuktuk(provider);
-
     const globalState = await program.account.globalState.fetchNullable(
       globalStatePda
     );
 
-    if (!globalState) {
-      const config = await tuktukProgram.account.tuktukConfigV0.fetch(
-        tuktukConfig
-      );
-      const nextTaskQueueId = config.nextTaskQueueId;
-      taskQueue = taskQueueKey(tuktukConfig, nextTaskQueueId)[0];
+    console.log("GLOBAL STATE: ", globalStatePda.toBase58());
 
-      await tuktukProgram.methods
-        .initializeTaskQueueV0({
-          name: taskQueueName,
-          minCrankReward: new anchor.BN(1_000_000),
-          capacity: 1000,
-          lookupTables: [],
-          staleTaskAge: 10000,
-        })
-        .accounts({
-          tuktukConfig,
-          payer: signer,
-          updateAuthority: signer,
-          taskQueue,
-          taskQueueNameMapping: taskQueueNameMappingKey(
-            tuktukConfig,
-            taskQueueName
-          )[0],
-        })
-        .rpc();
+    // @ts-ignore
+    tuktukProgram = await initTuktuk(provider);
+    taskQueue = globalState.taskQueue;
 
-      await tuktukProgram.methods
-        .addQueueAuthorityV0()
-        .accounts({
-          payer: signer,
-          queueAuthority: queueAuthorityPda,
-          taskQueue,
-        })
-        .rpc();
-
-      await program.methods
-        .initialize()
-        .accounts({ signer, taskQueue, programData: programDataAccount })
-        .rpc();
-    } else {
-      taskQueue = globalState.taskQueue;
-    }
+    console.log("TASK QUEUE: ", taskQueue.toBase58());
   });
 
   describe("create subscription", () => {
@@ -169,6 +114,11 @@ describe("capstone", () => {
         })
         .rpc();
 
+      console.log(
+        "SUBSCRIPTION PLAN CREATED: ",
+        subscriptionPlanPda.toBase58()
+      );
+
       const subscription = await program.account.subscriptionPlan.fetch(
         subscriptionPlanPda
       );
@@ -189,6 +139,16 @@ describe("capstone", () => {
 
   describe("subscribe", () => {
     it("user can subscribe to a subscription", async () => {
+      const [userSubscriptionPda] =
+        anchor.web3.PublicKey.findProgramAddressSync(
+          [
+            Buffer.from("subscription"),
+            subscriber.publicKey.toBuffer(),
+            subscriptionPlanPda.toBuffer(),
+          ],
+          program.programId
+        );
+
       const taskQueueAcc = await tuktukProgram.account.taskQueueV0.fetch(
         taskQueue
       );
@@ -199,17 +159,12 @@ describe("capstone", () => {
         false
       )[0];
 
-      const subscription = await program.account.subscriptionPlan.fetch(
-        "6dFt2ND45VS5xe2CawyfQQ4ZUKoGntfw1avmxjpsHs3w"
-      );
-
       await program.methods
         .subscribe()
         .accountsPartial({
+          userSubscription: userSubscriptionPda,
           subscriber: subscriber.publicKey,
-          subscriptionPlan: new anchor.web3.PublicKey(
-            "6dFt2ND45VS5xe2CawyfQQ4ZUKoGntfw1avmxjpsHs3w"
-          ),
+          subscriptionPlan: subscriptionPlanPda,
           mint: USDC_MINT,
           task: taskKey(taskQueue, nextTask)[0],
           globalState: globalStatePda,
@@ -218,13 +173,31 @@ describe("capstone", () => {
         })
         .signers([subscriber])
         .rpc();
+
+      console.log(
+        "SUBSCRIBED TO PLAN, SUBSCRIPTION ACCOUNT: ",
+        userSubscriptionPda.toBase58()
+      );
     });
   });
 
   describe("cancel subscription", () => {
     it("user can cancel a subscription", async () => {
+      console.log("WAITING FOR TUKTUK TO DEDUCT FROM VAULT...");
+      await new Promise((resolve) => setTimeout(resolve, 15000));
+
+      const [userSubscriptionPda] =
+        anchor.web3.PublicKey.findProgramAddressSync(
+          [
+            Buffer.from("subscription"),
+            subscriber.publicKey.toBuffer(),
+            subscriptionPlanPda.toBuffer(),
+          ],
+          program.programId
+        );
+
       let userSubs = await program.account.userSubscription.fetch(
-        "4dKGNSLhnVSZQzDAmupad6MUaqr6jFf7hKERmZ4aXfs5"
+        userSubscriptionPda
       );
 
       let task = taskKey(taskQueue, userSubs.nextTaskId)[0];
@@ -233,9 +206,7 @@ describe("capstone", () => {
         .cancelSubscription()
         .accountsPartial({
           subscriber: subscriber.publicKey,
-          userSubscription: new anchor.web3.PublicKey(
-            "4dKGNSLhnVSZQzDAmupad6MUaqr6jFf7hKERmZ4aXfs5"
-          ),
+          userSubscription: userSubscriptionPda,
           taskQueue,
           tokenProgram: TOKEN_PROGRAM_ID,
           task,

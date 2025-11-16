@@ -53,7 +53,7 @@ describe("capstone", () => {
           name,
           amount: new anchor.BN(1_000_000), // 1 USDC
           interval: new anchor.BN(120),
-          maxFailureCount: 1,
+          maxFailureCount: 2,
         })
         .accountsStrict({
           merchant: signer,
@@ -72,6 +72,8 @@ describe("capstone", () => {
         subscriptionPlanPda
       );
 
+      console.log("PLAN: ", subscriptionPlanPda.toBase58());
+
       assert.equal(subscription.merchant.toBase58(), signer.toBase58());
       assert.equal(subscription.name, name);
       assert.equal(
@@ -82,7 +84,7 @@ describe("capstone", () => {
         subscription.interval.toString(),
         new anchor.BN(120).toString()
       );
-      assert.equal(subscription.maxFailureCount, 1);
+      assert.equal(subscription.maxFailureCount, 2);
     });
   });
 });
