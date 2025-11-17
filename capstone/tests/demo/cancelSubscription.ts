@@ -69,7 +69,7 @@ describe("capstone", () => {
 
       let task = taskKey(taskQueue, userSubscriptionAccount.nextTaskId)[0];
 
-      await program.methods
+      let s = await program.methods
         .cancelSubscription()
         .accountsPartial({
           subscriber: subscriber.publicKey,
@@ -80,6 +80,8 @@ describe("capstone", () => {
         })
         .signers([subscriber])
         .rpc();
+
+      console.log(`https://explorer.solana.com/tx/${s}?cluster=devnet`);
     });
   });
 });

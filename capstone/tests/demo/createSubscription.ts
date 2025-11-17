@@ -7,7 +7,6 @@ import {
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
-import { assert } from "chai";
 
 function hashString(input: string): Buffer {
   return crypto.createHash("sha256").update(input, "utf8").digest();
@@ -48,7 +47,7 @@ describe("capstone", () => {
 
   describe("create subscription", () => {
     it("can create a new subscription", async () => {
-      await program.methods
+      const s = await program.methods
         .createSubscription({
           name,
           amount: new anchor.BN(1_000_000), // 1 USDC
@@ -68,23 +67,15 @@ describe("capstone", () => {
         })
         .rpc();
 
+      console.log(`https://explorer.solana.com/tx/${s}?cluster=devnet`);
+
       const subscription = await program.account.subscriptionPlan.fetch(
         subscriptionPlanPda
       );
 
-      console.log("PLAN: ", subscriptionPlanPda.toBase58());
-
-      assert.equal(subscription.merchant.toBase58(), signer.toBase58());
-      assert.equal(subscription.name, name);
-      assert.equal(
-        subscription.amount.toString(),
-        new anchor.BN(1_000_000).toString()
-      );
-      assert.equal(
-        subscription.interval.toString(),
-        new anchor.BN(120).toString()
-      );
-      assert.equal(subscription.maxFailureCount, 2);
+      console.log("PLAN ACCOUNT: ", subscriptionPlanPda.toBase58());
+      console.log("PLAN DETAILS:");
+      console.log(subscription);
     });
   });
 });

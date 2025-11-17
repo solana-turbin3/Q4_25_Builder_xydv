@@ -29,7 +29,7 @@ describe("capstone", () => {
 
   describe("close vault", () => {
     it("user can close his vault", async () => {
-      await program.methods
+      let s = await program.methods
         .closeVault()
         .accounts({
           subscriber: subscriber.publicKey,
@@ -37,6 +37,8 @@ describe("capstone", () => {
         })
         .signers([subscriber])
         .rpc();
+
+      console.log(`https://explorer.solana.com/tx/${s}?cluster=devnet`);
     });
   });
 });

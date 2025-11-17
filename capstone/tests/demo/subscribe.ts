@@ -72,7 +72,17 @@ describe("capstone", () => {
         "51UqXpmyngSDzTFdu6C79xVX57aejQgt1dKShoyit41c"
       );
 
-      await program.methods
+      const [userSubscriptionPda] =
+        anchor.web3.PublicKey.findProgramAddressSync(
+          [
+            Buffer.from("subscription"),
+            subscriber.publicKey.toBuffer(),
+            subscriptionPlan.toBuffer(),
+          ],
+          program.programId
+        );
+
+      let s = await program.methods
         .subscribe()
         .accountsPartial({
           subscriber: subscriber.publicKey,
@@ -85,6 +95,16 @@ describe("capstone", () => {
         })
         .signers([subscriber])
         .rpc();
+
+      console.log(`https://explorer.solana.com/tx/${s}?cluster=devnet`);
+
+      const details = await program.account.userSubscription.fetch(
+        userSubscriptionPda
+      );
+
+      console.log("USER SUBSCRIPTION: ", userSubscriptionPda.toBase58());
+      console.log("SUBSCRIPTION DETAILS: ");
+      console.log(details);
     });
   });
 });
